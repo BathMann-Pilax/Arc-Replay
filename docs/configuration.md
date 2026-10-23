@@ -6,10 +6,13 @@ Tout se règle dans `config/arc-replay.yml`. Après une modification : bouton **
 
 | Clé | Défaut | Rôle |
 |---|---|---|
-| `delai_s` | `10` | Retard d'affichage au démarrage (1 à 30 s). Modifiable ensuite depuis la télécommande. |
+| `delai_s` | `10` | Retard d'affichage au démarrage (3 à 30 s). Modifiable ensuite depuis la télécommande. |
 | `lateralite` | `droitier` | `droitier` ou `gaucher` au démarrage. Simple information (enregistrée avec chaque flèche) : aucune image n'est retournée. |
 | `usb_chemin` | `/media/hote/arc-usb` | Point de montage de la clé, vu depuis le conteneur (`/media/arc-usb` sur l'hôte). |
-| `usb_verifier_montage` | `true` | `false` pour tester l'export vers un simple dossier. |
+| `usb_verifier_montage` | `true` | `false` pour tester la sauvegarde vers un simple dossier. |
+| `code_telecommande` | vide | Code exigé pour piloter depuis la télécommande. Inutile sur le Wi-Fi `ArcReplay` protégé par mot de passe ; conseillé si le serveur est branché sur le réseau du club. Voir [Code de la télécommande](utilisation.md#code-de-la-télécommande). |
+| `alerte_espace_go` | `2` | En dessous de cet espace libre sur le serveur (Go), la télécommande affiche une alerte. |
+| `enregistrements` | `/recordings` | Enregistrements bruts de MediaMTX, vidés au démarrage et en fin de séance. |
 
 ## `volees`
 

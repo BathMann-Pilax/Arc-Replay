@@ -1,4 +1,9 @@
-"""Back-end Arc Replay : état partagé, commandes, flèches, clips et export USB."""
+"""Back-end Arc Replay : état partagé, commandes, flèches, clips et sauvegarde sur clé USB.
+
+Stockage : seule la volée en cours reste sur le serveur. Chaque volée terminée
+part sur la clé USB de l'archer si elle est branchée, sinon elle est supprimée.
+Le serveur est vidé à chaque démarrage et à chaque fin de séance.
+"""
 
 from __future__ import annotations
 
@@ -9,13 +14,15 @@ import json
 import logging
 import math
 import os
+import shutil
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
@@ -33,8 +40,10 @@ class Serveur:
         self.verrou = asyncio.Lock()
         self.clients: set[WebSocket] = set()
         self.taches: set[asyncio.Task] = set()
+        self.verrou_archives = asyncio.Lock()  # une seule copie vers la clé à la fois
         self.usb = {"presente": False, "libre_go": None}
-        self.export = {"etat": "inactif", "message": "", "progression": 0}
+        self.sauvegarde = {"etat": "inactif", "message": ""}
+        self.disque = {"libre_go": None}
         self.erreurs_cameras: list[str] = []
         self.etat = self._charger_etat()
 
@@ -54,29 +63,35 @@ class Serveur:
     # --- persistance -------------------------------------------------------------
 
     def _charger_etat(self) -> dict:
+        """Chaque démarrage ouvre une séance neuve et vide le stockage local.
+
+        Seuls les réglages d'affichage (retard, latéralité, disposition, QR)
+        sont repris de la dernière fois.
+        """
         fichier = self.donnees / "etat.json"
-        defaut = seance.etat_initial(self.config)
-        etat = None
+        etat = seance.etat_initial(self.config)
         if fichier.exists():
             try:
-                etat = json.loads(fichier.read_text(encoding="utf-8"))
-                for cle, valeur in defaut.items():
-                    etat.setdefault(cle, valeur)
-                # Séance commencée il y a plus de 6 h : on en ouvre une nouvelle
-                debut = datetime.fromisoformat(etat["seance"]["debut"])
-                if seance.maintenant() - debut > timedelta(hours=6):
-                    seance.nouvelle_seance(etat)
-            except (OSError, ValueError, KeyError, TypeError):
-                log.warning("etat.json illisible, nouvel état")
-                etat = None
-        etat = etat or defaut
-        etat["rejeu"] = None
-        # Une flèche « en cours » au redémarrage ne sera jamais terminée
-        for f in etat["fleches"]:
-            if f["statut"] == "en_cours":
-                f["statut"] = "erreur"
+                ancien = json.loads(fichier.read_text(encoding="utf-8"))
+                for cle in ("delai_s", "lateralite", "disposition", "afficher_qr"):
+                    if cle in ancien:
+                        etat[cle] = ancien[cle]
+            except (OSError, ValueError, TypeError):
+                log.warning("etat.json illisible, réglages par défaut")
+        self.purger_local()
         seance.reconcilier_disposition(etat, self.config)
         return etat
+
+    def purger_local(self, garder: Optional[str] = None) -> None:
+        """Supprime les séances du serveur (sauf `garder`) et les vieux enregistrements bruts."""
+        if self.seances.exists():
+            for p in self.seances.iterdir():
+                if p.name != garder:
+                    shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
+        if self.config.serveur.enregistrements:
+            n = usb.purger_enregistrements(Path(self.config.serveur.enregistrements))
+            if n:
+                log.info("%d enregistrement(s) brut(s) supprimé(s)", n)
 
     def _sauver(self) -> None:
         self.donnees.mkdir(parents=True, exist_ok=True)
@@ -90,8 +105,11 @@ class Serveur:
             return
         dossier.mkdir(parents=True, exist_ok=True)
         (dossier / "seance.csv").write_text(seance.contenu_csv(self.etat), encoding="utf-8")
+        (dossier / "groupements.csv").write_text(seance.contenu_csv_groupements(self.etat), encoding="utf-8")
 
     def ecrire_fiche_fleche(self, f: dict) -> None:
+        if f.get("archivee"):
+            return
         dossier = self.seances / f["dossier"]
         dossier.mkdir(parents=True, exist_ok=True)
         fiche = {k: f[k] for k in ("id", "volee", "numero", "heure", "statut", "clips", "impact")}
@@ -116,7 +134,10 @@ class Serveur:
                 }
                 for c in self.config.cameras
             ],
-            "usb": {**self.usb, "export": self.export},
+            "usb": {**self.usb, "sauvegarde": self.sauvegarde},
+            "disque": {**self.disque, "alerte_go": self.config.serveur.alerte_espace_go},
+            "groupements": seance.groupements(self.etat),
+            "code_requis": bool(self.config.serveur.code_telecommande),
             "erreurs_cameras": self.erreurs_cameras,
             "clips_config": {"avant_s": self.config.clips.avant_s, "apres_s": self.config.clips.apres_s},
         }
@@ -153,6 +174,7 @@ class Serveur:
             await self.diffuser()
         log.info("lâcher : flèche %s", fleche["id"])
         self.lancer(self.traiter_fleche(fleche["id"], heure, self.etat["seance"]["id"]))
+        self.lancer(self.archiver())
         return fleche
 
     async def traiter_fleche(self, fleche_id: str, heure: datetime, seance_id: str) -> None:
@@ -166,29 +188,45 @@ class Serveur:
             return  # séance changée entre-temps
         debut = heure - timedelta(seconds=c.avant_s)
         duree = c.avant_s + c.apres_s
-        reussis, echecs = {}, []
+        dossier = f["dossier"]
+        # Fichiers temporaires propres à cette découpe : si la flèche est annulée et
+        # qu'une autre reprend son numéro, les deux découpes ne se marchent pas dessus.
+        jeton = uuid.uuid4().hex[:8]
+
+        # Toutes les caméras en même temps : le rejeu est prêt plus tôt
+        async def une_camera(client: httpx.AsyncClient, cam_id: str) -> Optional[str]:
+            relatif = f"{dossier}/{seance.nom_clip(fleche_id, cam_id)}"
+            try:
+                await clips.extraire(
+                    client, self.config.serveur.mediamtx_playback, cam_id, debut, duree,
+                    self.seances / f"{relatif}.{jeton}.part",
+                )
+                return relatif
+            except (httpx.HTTPError, RuntimeError, OSError) as e:
+                log.warning("clip %s / %s : %s", fleche_id, cam_id, e)
+                return None
+
+        ids = [cam.id for cam in self.config.cameras]
         async with httpx.AsyncClient() as client:
-            for cam in self.config.cameras:
-                relatif = f"{f['dossier']}/{seance.nom_clip(fleche_id, cam.id)}"
-                try:
-                    await clips.extraire(
-                        client, self.config.serveur.mediamtx_playback, cam.id, debut, duree,
-                        self.seances / relatif,
-                    )
-                    reussis[cam.id] = relatif
-                except (httpx.HTTPError, RuntimeError, OSError) as e:
-                    log.warning("clip %s / %s : %s", fleche_id, cam.id, e)
-                    echecs.append(cam.id)
+            resultats = await asyncio.gather(*(une_camera(client, i) for i in ids))
+        reussis = {i: r for i, r in zip(ids, resultats) if r}
 
         async with self.verrou:
             f = seance.trouver_fleche(self.etat, fleche_id)
-            if f is None or self.etat["seance"]["id"] != seance_id:
+            if (f is None or self.etat["seance"]["id"] != seance_id
+                    or f["dossier"] != dossier or f["heure"] != heure.isoformat()):
+                # Flèche annulée ou séance terminée pendant la découpe
+                for relatif in reussis.values():
+                    (self.seances / f"{relatif}.{jeton}.part").unlink(missing_ok=True)
                 return
+            for relatif in reussis.values():
+                os.replace(self.seances / f"{relatif}.{jeton}.part", self.seances / relatif)
             f["clips"] = reussis
-            f["statut"] = "pret" if not echecs else ("partiel" if reussis else "erreur")
+            f["statut"] = "pret" if len(reussis) == len(ids) else ("partiel" if reussis else "erreur")
             self.ecrire_fiche_fleche(f)
             self.ecrire_fichiers_seance()
             await self.diffuser()
+        await self.archiver()
 
     async def impact(self, demande: "DemandeImpact") -> dict:
         async with self.verrou:
@@ -207,7 +245,7 @@ class Serveur:
                 "x": est_x,
                 "image": None,
             }
-            if demande.image_jpeg_b64:
+            if demande.image_jpeg_b64 and not f.get("archivee"):
                 try:
                     donnees = base64.b64decode(demande.image_jpeg_b64, validate=True)
                 except (binascii.Error, ValueError):
@@ -223,59 +261,99 @@ class Serveur:
             await self.diffuser()
             return f
 
-    # --- USB ---------------------------------------------------------------------
+    # --- stockage : volée en cours sur le serveur, le reste sur la clé ou nulle part --
 
-    async def surveiller_usb(self) -> None:
+    async def surveiller_stockage(self) -> None:
         while True:
             s = await asyncio.to_thread(
                 usb.statut, self.config.serveur.usb_chemin, self.config.serveur.usb_verifier_montage
             )
-            if s != self.usb:
-                self.usb = s
-                if not s["presente"] and self.export["etat"] == "termine":
-                    self.export = {"etat": "inactif", "message": "", "progression": 0}
+            self.donnees.mkdir(parents=True, exist_ok=True)
+            disque = {"libre_go": await asyncio.to_thread(usb.espace_libre_go, self.donnees)}
+            if s != self.usb or disque != self.disque:
+                if s["presente"] != self.usb["presente"]:
+                    self.sauvegarde = {"etat": "inactif", "message": ""}
+                self.usb, self.disque = s, disque
                 await self.diffuser(sauver=False)
             await asyncio.sleep(2)
 
-    async def exporter(self, portee: str) -> None:
-        if self.export["etat"] == "en_cours":
-            return
+    def _copier_vers_cle(self, seance_id: str, volees: list[int]) -> tuple[int, int]:
+        """Copie des volées et des récapitulatifs de la séance sur la clé (fil séparé)."""
+        racine_locale = self.seances / seance_id
+        destination = Path(self.config.serveur.usb_chemin) / "arc-replay" / seance_id
+        sources = [self.seances / seance.dossier_volee(seance_id, v) for v in volees]
+        copies, ignores = usb.exporter([s for s in sources if s.exists()], destination)
+        for nom in ("seance.csv", "groupements.csv"):
+            if (racine_locale / nom).exists():
+                usb.copier_fichier(racine_locale / nom, destination / nom)
+        os.sync()
+        return copies, ignores
+
+    async def archiver(self, toutes: bool = False, seance_id: Optional[str] = None) -> None:
+        """Libère le serveur des volées terminées : copie sur la clé si elle est là, puis suppression.
+
+        Sans clé, les fichiers sont simplement supprimés : seule la volée en cours
+        reste disponible pour le rejeu.
+        """
+        async with self.verrou_archives:
+            async with self.verrou:
+                if seance_id and seance_id != self.etat["seance"]["id"]:
+                    return
+                seance_id = self.etat["seance"]["id"]
+                volees = seance.volees_a_archiver(self.etat, toutes)
+                if not volees:
+                    return
+                self.ecrire_fichiers_seance()
+                # Le rejeu d'une volée qui part est fermé avant de supprimer ses fichiers
+                for v in volees:
+                    seance.marquer_archivee(self.etat, v)
+                await self.diffuser()
+
+            message = None
+            if self.usb["presente"]:
+                self.sauvegarde = {"etat": "en_cours", "message": "Enregistrement sur la clé…"}
+                await self.diffuser(sauver=False)
+                try:
+                    await asyncio.to_thread(self._copier_vers_cle, seance_id, volees)
+                    noms = ", ".join(f"V{v}" for v in volees)
+                    message = {"etat": "ok", "message": f"Volée(s) {noms} enregistrée(s) sur la clé."}
+                except OSError as e:
+                    log.warning("copie vers la clé : %s", e)
+                    message = {"etat": "erreur", "message": f"Volée(s) non enregistrée(s) : {e}"}
+            for v in volees:
+                shutil.rmtree(self.seances / seance.dossier_volee(seance_id, v), ignore_errors=True)
+            if message:
+                self.sauvegarde = message
+            await self.diffuser(sauver=False)
+
+    async def sauvegarder_maintenant(self) -> None:
+        """Copie la volée en cours sur la clé sans l'effacer, pour pouvoir retirer la clé."""
         if not self.usb["presente"]:
-            self.export = {"etat": "erreur", "message": "Aucune clé USB détectée", "progression": 0}
+            self.sauvegarde = {"etat": "erreur", "message": "Aucune clé USB détectée"}
             await self.diffuser(sauver=False)
             return
-        if portee == "tout":
-            sources = sorted(p for p in self.seances.iterdir() if p.is_dir()) if self.seances.exists() else []
-        else:
-            sources = [self.dossier_seance()] if self.dossier_seance().exists() else []
-        if not sources:
-            self.export = {"etat": "erreur", "message": "Rien à exporter pour l'instant", "progression": 0}
+        async with self.verrou_archives:
+            async with self.verrou:
+                seance_id = self.etat["seance"]["id"]
+                archivees = set(self.etat["volees_archivees"])
+                volees = sorted({f["volee"] for f in self.etat["fleches"]} - archivees)
+                self.ecrire_fichiers_seance()
+            self.sauvegarde = {"etat": "en_cours", "message": "Enregistrement sur la clé…"}
             await self.diffuser(sauver=False)
-            return
-
-        self.export = {"etat": "en_cours", "message": "Copie en cours…", "progression": 0}
+            try:
+                await asyncio.to_thread(self._copier_vers_cle, seance_id, volees)
+                self.sauvegarde = {"etat": "ok", "message": "Tout est sur la clé. Vous pouvez la retirer."}
+            except OSError as e:
+                self.sauvegarde = {"etat": "erreur", "message": f"Échec de la copie : {e}"}
         await self.diffuser(sauver=False)
-        boucle = asyncio.get_running_loop()
-        derniere = {"pct": -1}
 
-        def progression(fait: int, total: int) -> None:
-            pct = int(100 * fait / max(total, 1))
-            if pct != derniere["pct"]:
-                derniere["pct"] = pct
-                self.export["progression"] = pct
-                asyncio.run_coroutine_threadsafe(self.diffuser(sauver=False), boucle)
-
-        destination = Path(self.config.serveur.usb_chemin) / "arc-replay"
-        try:
-            copies, ignores = await asyncio.to_thread(usb.exporter, sources, destination, progression)
-            self.export = {
-                "etat": "termine",
-                "message": f"{copies} fichier(s) copié(s), {ignores} déjà présent(s). Vous pouvez retirer la clé.",
-                "progression": 100,
-            }
-        except OSError as e:
-            self.export = {"etat": "erreur", "message": f"Échec de la copie : {e}", "progression": 0}
-        await self.diffuser(sauver=False)
+    async def fin_de_seance(self) -> None:
+        """Range la séance (sur la clé si elle est là), vide le serveur et en ouvre une neuve."""
+        await self.archiver(toutes=True)
+        async with self.verrou:
+            seance.nouvelle_seance(self.etat)
+            self.purger_local(garder=self.etat["seance"]["id"])
+            await self.diffuser()
 
     # --- configuration -------------------------------------------------------------
 
@@ -317,17 +395,20 @@ class Commande(BaseModel):
     action: Literal[
         "delai", "lateralite", "disposition", "focus", "qr",
         "rejeu", "rejeu_controle", "rejeu_fermer",
-        "nouvelle_volee", "nouvelle_seance", "marquer", "export_usb",
+        "nouvelle_volee", "nouvelle_seance", "marquer", "annuler_fleche", "score",
+        "comparer", "sauvegarder_usb",
     ]
     valeur: Optional[float | str | bool] = None
     ordre: Optional[list[str]] = None
     masquees: Optional[list[str]] = None
     camera: Optional[str] = None
     fleche_id: Optional[str] = None
+    fleche_id_b: Optional[str] = None  # comparaison : seconde flèche
+    superposer: Optional[bool] = None  # comparaison : superposées plutôt que côte à côte
+    x: Optional[bool] = None  # saisie du score : X (10 intérieur)
     lecture: Optional[bool] = None
     vitesse: Optional[float] = Field(None, gt=0, le=2)
     redemarrer: bool = False
-    portee: Literal["seance", "tout"] = "seance"
 
 
 # --- application ---------------------------------------------------------------------
@@ -340,7 +421,7 @@ async def cycle_de_vie(app: FastAPI):
     global serveur
     serveur = Serveur(cfg.charger())
     serveur.lancer(serveur.appliquer_cameras())
-    serveur.lancer(serveur.surveiller_usb())
+    serveur.lancer(serveur.surveiller_stockage())
     log.info("Arc Replay prêt : %d caméra(s)", len(serveur.config.cameras))
     yield
     for t in list(serveur.taches):
@@ -360,6 +441,13 @@ app.mount(
 def srv() -> Serveur:
     assert serveur is not None
     return serveur
+
+
+def verifier_code(x_arc_code: Optional[str] = Header(None)) -> None:
+    """Si un code est configuré, la télécommande doit l'envoyer (en-tête X-Arc-Code)."""
+    attendu = srv().config.serveur.code_telecommande
+    if attendu and x_arc_code != attendu:
+        raise HTTPException(403, "code de la télécommande requis")
 
 
 @app.get("/api/sante")
@@ -386,7 +474,7 @@ async def impact(demande: DemandeImpact):
     return await srv().impact(demande)
 
 
-@app.post("/api/recharger")
+@app.post("/api/recharger", dependencies=[Depends(verifier_code)])
 async def recharger():
     try:
         await srv().recharger()
@@ -395,7 +483,7 @@ async def recharger():
     return {"ok": True, "erreurs_cameras": srv().erreurs_cameras}
 
 
-@app.post("/api/commande")
+@app.post("/api/commande", dependencies=[Depends(verifier_code)])
 async def commande(c: Commande):
     s = srv()
     ids = [cam.id for cam in s.config.cameras]
@@ -405,15 +493,19 @@ async def commande(c: Commande):
         fleche = await s.lacher(heure)
         return fleche or {"ignore": True}
 
-    if c.action == "export_usb":
-        s.lancer(s.exporter(c.portee))
+    if c.action == "sauvegarder_usb":
+        s.lancer(s.sauvegarder_maintenant())
+        return {"ok": True}
+
+    if c.action == "nouvelle_seance":
+        await s.fin_de_seance()
         return {"ok": True}
 
     async with s.verrou:
         e = s.etat
         if c.action == "delai":
             try:
-                e["delai_s"] = min(30.0, max(1.0, float(c.valeur)))
+                e["delai_s"] = min(float(cfg.DELAI_MAX_S), max(float(cfg.DELAI_MIN_S), float(c.valeur)))
             except (TypeError, ValueError):
                 raise HTTPException(400, "valeur de délai invalide")
         elif c.action == "lateralite":
@@ -444,6 +536,26 @@ async def commande(c: Commande):
                 "vitesse": c.vitesse or precedent.get("vitesse", 1.0),
                 "sequence": precedent.get("sequence", 0) + 1,
             }
+        elif c.action == "comparer":
+            a = seance.trouver_fleche(e, c.fleche_id)
+            b = seance.trouver_fleche(e, c.fleche_id_b) if c.fleche_id_b else None
+            if a is None or b is None or a["id"] == b["id"]:
+                raise HTTPException(404, "choisissez deux flèches différentes")
+            communes = [i for i in ids if i in a["clips"] and i in b["clips"]]
+            if not communes:
+                raise HTTPException(409, "ces deux flèches n'ont pas de clip commun")
+            camera = c.camera if c.camera in communes else (
+                e["disposition"]["focus"] if e["disposition"]["focus"] in communes else communes[0])
+            precedent = e["rejeu"] or {}
+            e["rejeu"] = {
+                "fleche_id": a["id"],
+                "fleche_id_b": b["id"],
+                "camera": camera,
+                "superposer": bool(c.superposer),
+                "lecture": True,
+                "vitesse": c.vitesse or precedent.get("vitesse", 1.0),
+                "sequence": precedent.get("sequence", 0) + 1,
+            }
         elif c.action == "rejeu_controle":
             if e["rejeu"] is None:
                 raise HTTPException(409, "aucun rejeu en cours")
@@ -454,13 +566,38 @@ async def commande(c: Commande):
             if c.redemarrer:
                 e["rejeu"]["sequence"] += 1
                 e["rejeu"]["lecture"] = True
+            if c.superposer is not None and e["rejeu"].get("fleche_id_b"):
+                e["rejeu"]["superposer"] = c.superposer
+            if c.camera is not None and e["rejeu"].get("fleche_id_b"):
+                if c.camera not in ids:
+                    raise HTTPException(400, "caméra inconnue")
+                e["rejeu"]["camera"] = c.camera
         elif c.action == "rejeu_fermer":
             e["rejeu"] = None
         elif c.action == "nouvelle_volee":
             seance.nouvelle_volee(e)
-        elif c.action == "nouvelle_seance":
-            seance.nouvelle_seance(e)
+        elif c.action == "annuler_fleche":
+            f = seance.annuler_derniere(e)
+            if f is None:
+                raise HTTPException(409, "aucune flèche à annuler dans la volée en cours")
+            shutil.rmtree(s.seances / f["dossier"], ignore_errors=True)
+            s.ecrire_fichiers_seance()
+        elif c.action == "score":
+            f = seance.trouver_fleche(e, c.fleche_id)
+            if f is None:
+                raise HTTPException(404, "aucune flèche à noter")
+            try:
+                valeur = int(c.valeur)
+            except (TypeError, ValueError):
+                raise HTTPException(400, "score invalide")
+            if not 0 <= valeur <= 10:
+                raise HTTPException(400, "score entre 0 et 10")
+            f["impact"] = seance.impact_manuel(f, valeur, bool(c.x))
+            s.ecrire_fiche_fleche(f)
+            s.ecrire_fichiers_seance()
         await s.diffuser()
+    if c.action == "nouvelle_volee":
+        s.lancer(s.archiver())
     return {"ok": True}
 
 

@@ -45,14 +45,15 @@ hlsSegmentCount: 40
 hlsSegmentDuration: 1s
 
 pathDefaults:
-  # Enregistrement continu en petits fichiers, purgés après 3 h.
-  # Les clips de chaque flèche sont extraits dans /data avant la purge.
+  # Enregistrement continu en fichiers d'une minute, purgés après 5 min :
+  # juste de quoi découper le clip de chaque flèche (extrait dans /data).
+  # Le back-end vide aussi ce dossier au démarrage et en fin de séance.
   record: yes
   recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f_%z
   recordFormat: fmp4
   recordPartDuration: 1s
-  recordSegmentDuration: 10m
-  recordDeleteAfter: 3h
+  recordSegmentDuration: 1m
+  recordDeleteAfter: 5m
 
 paths:
   all_others:

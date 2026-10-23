@@ -92,3 +92,60 @@ def test_reconcilier_disposition():
     e = {"disposition": {"ordre": ["b", "c", "a"], "masquees": ["b", "c"], "focus": "b"}}
     seance.reconcilier_disposition(e, c)
     assert e["disposition"] == {"ordre": ["c", "a"], "masquees": ["c"], "focus": None}
+
+
+def test_id_seance_unique_meme_dans_la_meme_seconde():
+    a = seance.nouvel_id_seance(T0)
+    assert a == "2026-10-23_18h00m00"
+    b = seance.nouvel_id_seance(T0, a)
+    c = seance.nouvel_id_seance(T0, b)
+    assert len({a, b, c}) == 3 and c == "2026-10-23_18h00m00-3"
+    e = seance.etat_initial(config(), T0)
+    ancien = e["seance"]["id"]
+    seance.nouvelle_seance(e, T0)
+    assert e["seance"]["id"] != ancien
+
+
+def test_volees_a_archiver_attend_les_clips():
+    c = config(fleches_par_volee=2, nouvelle_apres_s=300)
+    e = seance.etat_initial(c, T0)
+    for i in range(3):
+        seance.enregistrer_lacher(e, c, T0 + timedelta(seconds=10 * i))
+    assert seance.volees_a_archiver(e) == []  # clips de V1 pas encore prêts
+    for f in e["fleches"]:
+        f["statut"] = "pret"
+    assert seance.volees_a_archiver(e) == [1]
+    assert seance.volees_a_archiver(e, toutes=True) == [1, 2]
+    e["rejeu"] = {"fleche_id": "V01_F2"}
+    seance.marquer_archivee(e, 1)
+    assert e["rejeu"] is None and e["fleches"][0]["archivee"]
+    assert seance.volees_a_archiver(e) == []
+
+
+def test_annuler_seulement_dans_la_volee_en_cours():
+    c = config(fleches_par_volee=1, nouvelle_apres_s=300)
+    e = seance.etat_initial(c, T0)
+    seance.enregistrer_lacher(e, c, T0)
+    assert seance.annuler_derniere(e)["id"] == "V01_F1"
+    assert e["fleches"] == [] and e["fleche"] == 0
+    assert seance.annuler_derniere(e) is None
+    seance.enregistrer_lacher(e, c, T0 + timedelta(seconds=10))
+    seance.nouvelle_volee(e)
+    assert seance.annuler_derniere(e) is None  # volée en cours vide
+
+
+def test_groupement():
+    assert seance.groupement([{"x_mm": 0, "y_mm": 0}]) is None
+    g = seance.groupement([{"x_mm": 0, "y_mm": 3}, {"x_mm": 0, "y_mm": -3}, {"x_mm": None, "y_mm": None}])
+    assert g == {"n": 2, "centre_x_mm": 0.0, "centre_y_mm": 0.0, "dispersion_mm": 3.0}
+
+
+def test_csv_groupements():
+    c = config()
+    e = seance.etat_initial(c, T0)
+    for i, x in enumerate((0, 20)):
+        f = seance.enregistrer_lacher(e, c, T0 + timedelta(seconds=10 * i))
+        f["impact"] = {"x_mm": x, "y_mm": 0, "score": 10}
+    lignes = seance.contenu_csv_groupements(e).splitlines()
+    assert lignes[1] == "1;2;10.0;0.0;10.0"
+    assert lignes[2] == "seance;2;10.0;0.0;10.0"

@@ -1,20 +1,16 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { camerasVisibles, useEtat } from "./api";
+import { camerasVisibles, codeTelecommande, useEtat } from "./api";
+import { adresseTelecommande, colonnesPour, libelleScore } from "./logique";
 import MiniCible from "./MiniCible";
 import Rejeu from "./Rejeu";
 import Telecommande from "./Telecommande";
 import VueLive from "./VueLive";
 
-function colonnesPour(n) {
-  if (n <= 1) return 1;
-  if (n <= 4) return 2;
-  return 3;
-}
-
 function CodeTelecommande() {
   const [image, setImage] = useState(null);
-  const adresse = `${location.origin}/telecommande`;
+  // Si un code est configuré, ouvrir l'écran une fois avec ?code=… : le QR code le transmet
+  const adresse = adresseTelecommande(location.origin, codeTelecommande());
   useEffect(() => {
     QRCode.toDataURL(adresse, { margin: 1, width: 220 }).then(setImage);
   }, [adresse]);
@@ -23,7 +19,7 @@ function CodeTelecommande() {
     <div className="qr">
       <img src={image} alt="QR code de la télécommande" />
       <span>Télécommande</span>
-      <small>{adresse}</small>
+      <small>{`${location.origin}/telecommande`}</small>
     </div>
   );
 }
@@ -39,6 +35,7 @@ export default function Ecran() {
   const focus = cameras.find((c) => c.id === etat.disposition.focus);
   const voleeEnCours = etat.fleches.filter((f) => f.volee === etat.volee);
   const impacts = voleeEnCours.map((f) => f.impact).filter(Boolean);
+  const groupement = etat.groupements?.volee;
   const derniere = etat.fleches.at(-1);
 
   const vue = (c, etiquette = true) => (
@@ -75,9 +72,12 @@ export default function Ecran() {
 
       {(impacts.length > 0 || derniere?.impact) && !etat.rejeu && (
         <div className="cible-hud">
-          <MiniCible impacts={impacts} taille={140} />
+          <MiniCible impacts={impacts} groupement={groupement} taille={140} />
           {derniere?.impact && (
-            <div className="score score--grand">{derniere.impact.x ? "X" : derniere.impact.score}</div>
+            <div className="score score--grand">{libelleScore(derniere.impact)}</div>
+          )}
+          {groupement && (
+            <div className="cible-hud__groupement">Groupement · ⌀ {Math.round(groupement.dispersion_mm * 2)} mm</div>
           )}
         </div>
       )}

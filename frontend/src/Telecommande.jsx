@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { commande, recharger, useEtat } from "./api";
+import { commande, memoriserCode, recharger, useEtat } from "./api";
+import { camerasCommunes, libelleScore, rejouable } from "./logique";
 
 const VITESSES = [1, 0.5, 0.25];
+const SCORES = [["X", 10, true], ["10", 10], ["9", 9], ["8", 8], ["7", 7], ["6", 6],
+  ["5", 5], ["4", 4], ["3", 3], ["2", 2], ["1", 1], ["M", 0]];
 
 function Section({ titre, children }) {
   return (
@@ -12,18 +15,45 @@ function Section({ titre, children }) {
   );
 }
 
+function DemandeCode({ onValide }) {
+  const [code, setCode] = useState("");
+  return (
+    <form
+      className="alerte alerte--douce"
+      onSubmit={(e) => {
+        e.preventDefault();
+        memoriserCode(code.trim());
+        onValide();
+      }}
+    >
+      <p>Code de la télécommande (affiché dans le QR code de l'écran) :</p>
+      <div className="rangee">
+        <input className="champ" value={code} onChange={(e) => setCode(e.target.value)}
+          autoFocus inputMode="numeric" aria-label="Code" />
+        <button className="bouton bouton--principal" type="submit">Valider</button>
+      </div>
+    </form>
+  );
+}
+
 export default function Telecommande({ integree = false }) {
   const { etat, connecte } = useEtat();
   const [erreur, setErreur] = useState(null);
+  const [codeDemande, setCodeDemande] = useState(false);
   const [voleeOuverte, setVoleeOuverte] = useState(null);
   const [delaiLocal, setDelaiLocal] = useState(null); // valeur pendant le glissement
+  const [selection, setSelection] = useState(null); // flèche choisie pour le score
+  const [comparaison, setComparaison] = useState(null); // null, ou [] puis [id A] en cours de choix
 
   const agir = async (action, params) => {
     setErreur(null);
     try {
       await commande(action, params);
+      return true;
     } catch (e) {
-      setErreur(e.message);
+      if (e.codeRequis) setCodeDemande(true);
+      else setErreur(e.message);
+      return false;
     }
   };
 
@@ -35,6 +65,13 @@ export default function Telecommande({ integree = false }) {
   const { ordre, masquees, focus } = etat.disposition;
   const volees = [...new Set(etat.fleches.map((f) => f.volee))].reverse();
   const voleeAffichee = voleeOuverte ?? volees[0];
+  const trouver = (id) => etat.fleches.find((f) => f.id === id);
+  const aNoter = trouver(selection) ?? derniere;
+  const flecheA = rejeu?.fleche_id_b ? trouver(rejeu.fleche_id) : null;
+  const flecheB = rejeu?.fleche_id_b ? trouver(rejeu.fleche_id_b) : null;
+  const groupement = etat.groupements?.volee;
+  const groupementSeance = etat.groupements?.seance;
+  const espaceBas = etat.disque?.libre_go != null && etat.disque.libre_go < etat.disque.alerte_go;
 
   const deplacer = (id, sens) => {
     const nouvel = [...ordre];
@@ -50,7 +87,23 @@ export default function Telecommande({ integree = false }) {
     });
 
   const statutFleche = (f) =>
-    f.statut === "pret" || f.statut === "partiel" ? null : f.statut === "en_cours" ? "…" : "!";
+    f.archivee ? null : f.statut === "pret" || f.statut === "partiel" ? null : f.statut === "en_cours" ? "…" : "!";
+
+  const toucherFleche = async (f) => {
+    if (comparaison === null) setSelection(f.id);
+    if (comparaison !== null) {
+      if (!rejouable(f)) return;
+      if (comparaison.length === 0) {
+        setComparaison([f.id]);
+      } else if (comparaison[0] !== f.id) {
+        if (await agir("comparer", { fleche_id: comparaison[0], fleche_id_b: f.id, camera: focus })) {
+          setComparaison(null);
+        }
+      }
+      return;
+    }
+    if (rejouable(f)) agir("rejeu", { fleche_id: f.id });
+  };
 
   return (
     <div className={`telecommande ${integree ? "telecommande--integree" : ""}`}>
@@ -64,9 +117,15 @@ export default function Telecommande({ integree = false }) {
         </header>
       )}
 
+      {codeDemande && <DemandeCode onValide={() => setCodeDemande(false)} />}
       {erreur && (
         <div className="alerte" onClick={() => setErreur(null)}>
           {erreur}
+        </div>
+      )}
+      {espaceBas && (
+        <div className="alerte">
+          Plus que {etat.disque.libre_go} Go libres sur le serveur. Terminez la séance pour le vider.
         </div>
       )}
       {etat.erreurs_cameras?.length > 0 && (
@@ -81,7 +140,7 @@ export default function Telecommande({ integree = false }) {
         {!rejeu ? (
           <button
             className="bouton bouton--principal bouton--large"
-            disabled={!derniere || !Object.keys(derniere.clips).length}
+            disabled={!rejouable(derniere)}
             onClick={() => agir("rejeu", { fleche_id: "derniere" })}
           >
             {!derniere
@@ -114,8 +173,41 @@ export default function Telecommande({ integree = false }) {
                 </button>
               ))}
             </div>
+            {flecheA && flecheB && (
+              <>
+                <div className="rangee segments">
+                  <button className={`bouton ${!rejeu.superposer ? "bouton--actif" : ""}`}
+                    onClick={() => agir("rejeu_controle", { superposer: false })}>
+                    Côte à côte
+                  </button>
+                  <button className={`bouton ${rejeu.superposer ? "bouton--actif" : ""}`}
+                    onClick={() => agir("rejeu_controle", { superposer: true })}>
+                    Superposées
+                  </button>
+                </div>
+                <div className="rangee segments segments--defilant">
+                  {camerasCommunes(etat, flecheA, flecheB).map((c) => (
+                    <button key={c.id} className={`bouton bouton--petit ${rejeu.camera === c.id ? "bouton--actif" : ""}`}
+                      onClick={() => agir("rejeu_controle", { camera: c.id })}>
+                      {c.nom}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
+
+        <button
+          className={`bouton bouton--discret ${comparaison !== null ? "bouton--actif" : ""}`}
+          onClick={() => setComparaison(comparaison === null ? [] : null)}
+        >
+          {comparaison === null
+            ? "Comparer deux flèches"
+            : comparaison.length === 0
+              ? "Touchez la première flèche… (annuler)"
+              : "Touchez la seconde flèche… (annuler)"}
+        </button>
 
         {volees.length > 0 && (
           <>
@@ -136,19 +228,56 @@ export default function Telecommande({ integree = false }) {
                 .map((f) => (
                   <button
                     key={f.id}
-                    className={`fleche ${rejeu?.fleche_id === f.id ? "fleche--active" : ""}`}
-                    disabled={!Object.keys(f.clips).length}
-                    onClick={() => agir("rejeu", { fleche_id: f.id })}
+                    className={[
+                      "fleche",
+                      rejeu && [rejeu.fleche_id, rejeu.fleche_id_b].includes(f.id) ? "fleche--active" : "",
+                      aNoter?.id === f.id ? "fleche--choisie" : "",
+                      comparaison?.includes(f.id) ? "fleche--active" : "",
+                      f.archivee ? "fleche--archivee" : "",
+                    ].join(" ")}
+                    onClick={() => toucherFleche(f)}
                   >
                     <span className="fleche__num">F{f.numero}</span>
-                    <span className="fleche__score">
-                      {f.impact ? (f.impact.x ? "X" : f.impact.score) : "–"}
-                    </span>
+                    <span className="fleche__score">{libelleScore(f.impact)}</span>
                     {statutFleche(f) && <span className="fleche__statut">{statutFleche(f)}</span>}
                   </button>
                 ))}
             </div>
+            {voleeAffichee !== etat.volee && etat.fleches.some((f) => f.volee === voleeAffichee && f.archivee) && (
+              <p className="info">
+                Volée terminée : ses vidéos {etat.usb.presente ? "sont sur la clé USB" : "ont été effacées du serveur"}.
+                Les scores restent.
+              </p>
+            )}
           </>
+        )}
+      </Section>
+
+      <Section titre="Score">
+        {aNoter ? (
+          <>
+            <p className="info">
+              Flèche {aNoter.id.replace("_", " ")} : <strong>{libelleScore(aNoter.impact)}</strong>
+              {aNoter.impact?.manuel ? " (saisi)" : aNoter.impact ? " (détecté)" : ""}
+            </p>
+            <div className="clavier-score">
+              {SCORES.map(([libelle, valeur, x]) => (
+                <button key={libelle} className={`bouton bouton--petit score-${libelle}`}
+                  onClick={() => agir("score", { fleche_id: aNoter.id, valeur, x: !!x })}>
+                  {libelle}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="info">Le score se saisit ici quand la cible n'est pas filmée.</p>
+        )}
+        {(groupement || groupementSeance) && (
+          <p className="info">
+            {groupement && <>Groupement volée : ⌀ {Math.round(groupement.dispersion_mm * 2)} mm. </>}
+            {groupementSeance && <>Séance : ⌀ {Math.round(groupementSeance.dispersion_mm * 2)} mm
+              ({groupementSeance.n} impacts).</>}
+          </p>
         )}
       </Section>
 
@@ -162,11 +291,23 @@ export default function Telecommande({ integree = false }) {
           </button>
         </div>
         <button
+          className="bouton"
+          disabled={!derniere || derniere.volee !== etat.volee || etat.fleche === 0}
+          onClick={() => confirm(`Annuler la flèche ${derniere.id.replace("_", " ")} (faux lâcher) ?`) &&
+            agir("annuler_fleche")}
+        >
+          Annuler la dernière flèche
+        </button>
+        <button
           className="bouton bouton--discret"
-          onClick={() => confirm("Commencer une nouvelle séance ? La séance actuelle reste sur le serveur.") &&
+          disabled={derniere?.statut === "en_cours"}
+          onClick={() => confirm(
+            etat.usb.presente
+              ? "Terminer la séance ? La volée en cours sera enregistrée sur la clé, puis le serveur sera vidé."
+              : "Terminer la séance ? Sans clé USB, les vidéos seront effacées.") &&
             agir("nouvelle_seance")}
         >
-          Nouvelle séance
+          Fin de séance
         </button>
       </Section>
 
@@ -242,32 +383,32 @@ export default function Telecommande({ integree = false }) {
       <Section titre="Clé USB">
         {etat.usb.presente ? (
           <>
-            <p className="info">Clé détectée · {etat.usb.libre_go} Go libres</p>
-            <div className="rangee">
-              <button className="bouton bouton--principal" disabled={etat.usb.export.etat === "en_cours"}
-                onClick={() => agir("export_usb", { portee: "seance" })}>
-                Exporter la séance
-              </button>
-              <button className="bouton" disabled={etat.usb.export.etat === "en_cours"}
-                onClick={() => agir("export_usb", { portee: "tout" })}>
-                Tout exporter
-              </button>
-            </div>
+            <p className="info">
+              Clé détectée · {etat.usb.libre_go} Go libres. Chaque volée terminée y est enregistrée
+              automatiquement, puis effacée du serveur.
+            </p>
+            <button className="bouton" disabled={etat.usb.sauvegarde.etat === "en_cours"}
+              onClick={() => agir("sauvegarder_usb")}>
+              Enregistrer maintenant (avant de retirer la clé)
+            </button>
           </>
         ) : (
-          <p className="info">Branchez une clé USB sur le serveur pour exporter les clips.</p>
+          <p className="info">
+            Sans clé, seule la volée en cours est gardée pour le rejeu. Branchez une clé USB sur le
+            serveur pour conserver chaque volée.
+          </p>
         )}
-        {etat.usb.export.etat === "en_cours" && (
-          <progress max="100" value={etat.usb.export.progression} />
-        )}
-        {etat.usb.export.message && (
-          <p className={`info ${etat.usb.export.etat === "erreur" ? "info--erreur" : ""}`}>
-            {etat.usb.export.message}
+        {etat.usb.sauvegarde.message && (
+          <p className={`info ${etat.usb.sauvegarde.etat === "erreur" ? "info--erreur" : ""}`}>
+            {etat.usb.sauvegarde.message}
           </p>
         )}
       </Section>
 
       <Section titre="Configuration">
+        {etat.disque?.libre_go != null && (
+          <p className={`info ${espaceBas ? "info--erreur" : ""}`}>Espace libre sur le serveur : {etat.disque.libre_go} Go</p>
+        )}
         <button
           className="bouton bouton--discret"
           onClick={async () => {
@@ -275,7 +416,8 @@ export default function Telecommande({ integree = false }) {
             try {
               await recharger();
             } catch (e) {
-              setErreur(e.message);
+              if (e.codeRequis) setCodeDemande(true);
+              else setErreur(e.message);
             }
           }}
         >

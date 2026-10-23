@@ -13,7 +13,7 @@ x-commun: &commun
 services:
   mediamtx:
     <<: *commun
-    image: bluenviron/mediamtx:${MEDIAMTX_TAG:-latest-ffmpeg}
+    image: bluenviron/mediamtx:${MEDIAMTX_TAG:-1.21.2-ffmpeg}
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
       - enregistrements:/recordings
@@ -33,6 +33,8 @@ services:
     volumes:
       - ./config:/config:ro
       - donnees:/data
+      # Enregistrements bruts : le back-end les purge au démarrage et en fin de séance
+      - enregistrements:/recordings
       # Clé USB montée par l'hôte dans /media/arc-usb (voir docs/installation.md).
       # rslave : le conteneur voit la clé même si elle est branchée après le démarrage.
       - /media:/media/hote:rslave

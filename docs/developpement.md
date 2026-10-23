@@ -59,7 +59,7 @@ curl -X POST localhost:8100/api/impact -H 'content-type: application/json' \
 cd backend && pip install pytest && pytest -q
 cd noeuds/cible && pip install opencv-python-headless numpy pyyaml pytest && pytest -q
 cd detecteur-lacher && pip install numpy pytest && pytest -q
-cd frontend && npm run build
+cd frontend && npm test && npm run build
 ```
 
 La CI GitHub Actions lance ces mêmes tests, puis construit et publie les images Docker arm64/amd64.
@@ -72,8 +72,8 @@ La CI GitHub Actions lance ces mêmes tests, puis construit et publie les images
 | `WS` | `/api/ws` | État poussé à chaque changement ; envoyer `ping` pour recevoir l'heure du serveur. |
 | `POST` | `/api/lacher` | `{heure?, source?}` : nouvelle flèche. |
 | `POST` | `/api/impact` | `{fleche_id?, x_mm, y_mm, diametre_mm, score?, image_jpeg_b64?}` : impact (repère : centre du blason, y vers le haut). |
-| `POST` | `/api/commande` | `{action, …}` : voir ci-dessous. |
-| `POST` | `/api/recharger` | Relit `arc-replay.yml` et reconfigure MediaMTX. |
+| `POST` | `/api/commande` | `{action, …}` : voir ci-dessous. Exige l'en-tête `X-Arc-Code` si `code_telecommande` est réglé. |
+| `POST` | `/api/recharger` | Relit `arc-replay.yml` et reconfigure MediaMTX. Même code que `/api/commande`. |
 | `GET` | `/api/sante` | Contrôle de vie. |
 
 Actions de `/api/commande` :
@@ -86,9 +86,13 @@ Actions de `/api/commande` :
 | `focus` | `camera` (ou absent pour revenir à la mosaïque) |
 | `qr` | `valeur` : booléen |
 | `rejeu` | `fleche_id` (`derniere` par défaut), `vitesse` |
-| `rejeu_controle` | `lecture`, `vitesse`, `redemarrer` |
+| `comparer` | `fleche_id`, `fleche_id_b`, `camera`, `superposer` : deux flèches, une caméra |
+| `rejeu_controle` | `lecture`, `vitesse`, `redemarrer` ; en comparaison : `camera`, `superposer` |
 | `rejeu_fermer` | — |
-| `nouvelle_volee`, `nouvelle_seance`, `marquer` | — |
-| `export_usb` | `portee` : `seance` ou `tout` |
+| `nouvelle_volee`, `marquer` | — |
+| `nouvelle_seance` | — : fin de séance (sauvegarde sur la clé si présente, puis serveur vidé) |
+| `annuler_fleche` | — : retire la dernière flèche de la volée en cours (faux lâcher) |
+| `score` | `fleche_id` (dernière par défaut), `valeur` 0 à 10, `x` : score saisi à la main |
+| `sauvegarder_usb` | — : copie la volée en cours sur la clé sans l'effacer du serveur |
 
 Tout autre déclencheur de lâcher (capteur sur l'arc, bouton physique sur un GPIO…) n'a qu'à appeler `POST /api/lacher`.

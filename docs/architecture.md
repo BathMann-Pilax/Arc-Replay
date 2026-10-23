@@ -34,7 +34,7 @@ flowchart TB
 | Composant | Rôle |
 |---|---|
 | **MediaMTX** | Reçoit tous les flux, les sert en HLS (avec 40 s d'historique), les enregistre en continu et découpe des extraits à la demande. Aucun transcodage. |
-| **Back-end** (Python, FastAPI) | Garde l'état partagé (disposition, retard, flèches, rejeu), le diffuse par WebSocket, crée les chemins MediaMTX, extrait les clips, gère l'export USB. |
+| **Back-end** (Python, FastAPI) | Garde l'état partagé (disposition, retard, flèches, rejeu), le diffuse par WebSocket, crée les chemins MediaMTX, extrait les clips, gère le stockage (volée en cours sur le serveur, volées terminées sur la clé USB). |
 | **Interface** (React, nginx) | Deux pages : l'écran (affichage seul) et la télécommande. nginx sert aussi les clips et relaie HLS et API. |
 | **Détecteur de lâcher** | Conteneur optionnel qui écoute un micro USB et signale chaque lâcher. |
 | **Nœuds Raspberry Pi** | Hors Docker (systemd), pour rester légers sur un Pi Zero 2 W. Ils encodent avec l'encodeur H.264 matériel du Pi et poussent leur flux vers le serveur. |
@@ -67,18 +67,32 @@ sequenceDiagram
   Note over API: attend apres_s + marge_s
   API->>MTX: GET :9996/get?path=profil&start=…&duration=9
   MTX-->>API: MP4 (sans réencodage)
-  API->>API: V03_F2_profil.mp4, impact.json, seance.csv
+  API->>API: V03_F2_profil.mp4, impact.json, seance.csv (toutes caméras en parallèle)
   Cible->>Cible: compare avant / après
   Cible->>API: POST /api/impact (x, y en mm, photo)
 ```
 
-Le serveur de relecture de MediaMTX recolle les morceaux d'enregistrement et renvoie un MP4 standard : la découpe est quasi instantanée, même sur un Pi 5 sans encodeur matériel. L'enregistrement continu est purgé après 3 h (`recordDeleteAfter`), les clips extraits restent dans le volume `donnees`.
+Le serveur de relecture de MediaMTX recolle les morceaux d'enregistrement et renvoie un MP4 standard : la découpe est quasi instantanée, même sur un Pi 5 sans encodeur matériel. L'enregistrement continu est découpé en fichiers d'une minute et purgé après 5 min (`recordDeleteAfter`) : il ne sert qu'à découper les clips.
 
-Organisation sur disque (et sur la clé USB) :
+## Stockage
+
+Le serveur ne garde que **la volée en cours**, pour le rejeu et la comparaison.
+
+| Moment | Sans clé USB | Avec la clé de l'archer |
+|---|---|---|
+| Volée terminée (dès que tous ses clips sont découpés) | Fichiers supprimés | Fichiers copiés sur la clé, puis supprimés du serveur |
+| « Enregistrer maintenant » | — | Volée en cours copiée sur la clé, gardée sur le serveur |
+| Fin de séance | Tout est supprimé | Volée en cours copiée sur la clé, puis tout est supprimé |
+| Démarrage du serveur | Tout est supprimé | Tout est supprimé |
+
+Les scores et positions d'impact restent dans l'état jusqu'à la fin de la séance (CSV, groupements). Une clé branchée en cours de séance reçoit les volées suivantes ; les volées déjà terminées ne sont plus sur le serveur.
+
+Organisation sur la clé USB (et, pour la volée en cours, sur le serveur) :
 
 ```
-seances/2026-10-23_18h41/
+arc-replay/2026-10-23_18h41m05/
   seance.csv                    # une ligne par flèche (séparateur ;)
+  groupements.csv               # centre et dispersion par volée et pour la séance
   volee01/
     fleche1/
       V01_F1_profil.mp4
@@ -86,12 +100,12 @@ seances/2026-10-23_18h41/
       V01_F1_arriere.mp4
       V01_F1_cible.mp4
       V01_F1_impact.jpg         # photo annotée du nœud cible
-      impact.json               # heure, score, position, latéralité
+      impact.json               # heure, score, position
 ```
 
 ## État partagé
 
-Le back-end est la seule source de vérité. Toute action (télécommande, micro, nœud cible) modifie l'état, qui est sauvegardé dans `/data/etat.json` puis diffusé en entier à tous les clients WebSocket. Un écran qui se reconnecte retrouve donc immédiatement la bonne disposition. Plusieurs écrans et plusieurs télécommandes peuvent être connectés en même temps.
+Le back-end est la seule source de vérité. Toute action (télécommande, micro, nœud cible) modifie l'état, qui est sauvegardé dans `/data/etat.json` puis diffusé en entier à tous les clients WebSocket. Un écran qui se reconnecte retrouve donc immédiatement la bonne disposition. Au redémarrage, seuls les réglages (retard, disposition, QR code) sont repris : la séance repart de zéro. Plusieurs écrans et plusieurs télécommandes peuvent être connectés en même temps.
 
 ## Choix techniques
 
@@ -115,4 +129,4 @@ Le back-end est la seule source de vérité. Toute action (télécommande, micro
 | 9997 | API de contrôle MediaMTX | interne |
 | 8000 | Back-end | interne (via `/api/`) |
 
-Le serveur n'a **aucune authentification** : il est prévu pour un réseau local fermé. Ne l'exposez pas sur internet en l'état.
+Le serveur est prévu pour un réseau local fermé. Sur le Wi-Fi `ArcReplay` (WPA2), aucun code n'est nécessaire. Si le serveur est branché sur un réseau partagé, réglez `code_telecommande` : les commandes l'exigent alors. Les capteurs (micro, nœud cible) et la publication RTSP restent ouverts. Ne l'exposez jamais sur internet.

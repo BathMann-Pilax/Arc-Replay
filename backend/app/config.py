@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 ID_CAMERA = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 DEBIT = re.compile(r"^\d+(\.\d+)?[kKmM]?$")
+DELAI_MIN_S = 3
+DELAI_MAX_S = 30
 
 
 class Camera(BaseModel):
@@ -67,13 +69,19 @@ class Camera(BaseModel):
 
 
 class Serveur(BaseModel):
-    delai_s: float = Field(10, ge=1, le=30)
+    delai_s: float = Field(10, ge=DELAI_MIN_S, le=DELAI_MAX_S)
     lateralite: Literal["droitier", "gaucher"] = "droitier"
     usb_chemin: str = "/media/hote/arc-usb"
     usb_verifier_montage: bool = True
     mediamtx_api: str = "http://mediamtx:9997"
     mediamtx_playback: str = "http://mediamtx:9996"
     donnees: str = "/data"
+    # Enregistrements bruts de MediaMTX, purgés au démarrage et en fin de séance
+    enregistrements: Optional[str] = "/recordings"
+    # Code demandé par la télécommande (vide = pas de code)
+    code_telecommande: Optional[str] = Field(None, max_length=64)
+    # En dessous, la télécommande affiche une alerte
+    alerte_espace_go: float = Field(2, ge=0)
 
 
 class Volees(BaseModel):
@@ -125,6 +133,8 @@ def charger(chemin: Optional[Path] = None) -> Config:
         config.serveur.donnees = os.environ["ARC_DONNEES"]
     if "ARC_MEDIAMTX_API" in os.environ:
         config.serveur.mediamtx_api = os.environ["ARC_MEDIAMTX_API"]
+    if "ARC_ENREGISTREMENTS" in os.environ:
+        config.serveur.enregistrements = os.environ["ARC_ENREGISTREMENTS"] or None
     if "ARC_MEDIAMTX_PLAYBACK" in os.environ:
         config.serveur.mediamtx_playback = os.environ["ARC_MEDIAMTX_PLAYBACK"]
     return config

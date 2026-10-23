@@ -86,7 +86,9 @@ button { font: inherit; color: inherit; }
 .rejeu { display: flex; flex-direction: column; height: 100%; }
 .rejeu .mosaique { flex: 1; min-height: 0; }
 .rejeu__bandeau {
-  display: flex; gap: 10px; align-items: center; padding: 8px 14px 4px 160px;
+  /* Aligné à droite : le compteur occupe le coin gauche */
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; align-items: center;
+  padding: 8px 14px 4px; min-height: 52px;
   font-size: clamp(0.9rem, 1.5vw, 1.25rem);
 }
 .rejeu__titre { font-weight: 600; }
@@ -183,3 +185,29 @@ progress { width: 100%; height: 10px; accent-color: var(--or); }
   background: #4a1512; border: 1px solid var(--rouge); cursor: pointer;
 }
 .alerte--douce { background: #3a2f0d; border-color: #7a6418; cursor: default; font-size: 0.9rem; }
+
+/* Flèche choisie pour le score, volée déjà partie (plus de vidéo) */
+.fleche--choisie { outline: 2px dashed var(--texte-doux); outline-offset: 2px; }
+.fleche--archivee { opacity: 0.6; cursor: default; }
+
+/* Clavier de saisie du score */
+.clavier-score { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.clavier-score .bouton { min-width: 0; padding: 6px 0; font-weight: 700; }
+.score-X, .score-10, .score-9 { background: var(--or); color: #1a1500; }
+.score-8, .score-7 { background: var(--rouge); }
+.score-6, .score-5 { background: var(--bleu); }
+.score-4, .score-3 { background: #1b1b1b; }
+.score-2, .score-1 { background: #f4f1ea; color: #111; }
+
+.champ {
+  flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border-radius: var(--rayon);
+  border: 1px solid var(--bord); background: var(--surface-2); color: var(--texte); font: inherit;
+}
+
+/* Groupement sous le mini-blason */
+.cible-hud__groupement { font-size: 0.85rem; color: #00e5ff; }
+
+/* Comparaison superposée : deux vidéos l'une sur l'autre */
+.vue--superposee video + video { position: absolute; inset: 0; width: 100%; height: 100%; }
+.legende--a { color: var(--or); }
+.legende--b { color: #00e5ff; }

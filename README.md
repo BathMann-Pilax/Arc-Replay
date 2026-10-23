@@ -2,7 +2,7 @@
 
 Retour vidéo différé multi-caméras pour le tir à l'arc.
 
-L'archer tire, puis voit son geste sur un écran **avec quelques secondes de retard** (10 s par défaut), sous plusieurs angles à la fois. Chaque flèche est découpée en clips que l'on peut rejouer au ralenti depuis une télécommande (téléphone ou tablette) et exporter sur clé USB. Une caméra placée dans le coffre de la cible peut localiser l'impact et calculer le score.
+L'archer tire, puis voit son geste sur un écran **avec quelques secondes de retard** (10 s par défaut), sous plusieurs angles à la fois. Chaque flèche est découpée en clips que l'on peut rejouer au ralenti ou comparer depuis une télécommande (téléphone ou tablette). Le serveur ne garde que la volée en cours : l'archer qui veut ses vidéos branche sa clé USB, et chaque volée y part automatiquement. Une caméra placée dans le coffre de la cible peut localiser l'impact et calculer le score.
 
 ```mermaid
 flowchart LR
@@ -27,9 +27,12 @@ flowchart LR
 - **Ajout de caméras sans code** : une entrée dans `config/arc-replay.yml` (USB, nœud Raspberry Pi ou caméra IP).
 - **Gaucher / droitier** : pas d'image inversée, l'écran se déplace sur un support à roulettes pour rester du côté de l'archer ; la latéralité est notée avec chaque flèche.
 - **Une flèche = un dossier de clips** : détection du lâcher au micro, ou bouton « marquer ».
-- **Rejeu** de n'importe quelle flèche, toutes vues ensemble, en vitesse réelle, ×0,5 ou ×0,25.
+- **Rejeu** des flèches de la volée, toutes vues ensemble, en vitesse réelle, ×0,5 ou ×0,25.
+- **Comparaison** de deux flèches côte à côte ou superposées, alignées sur le lâcher.
+- **Score** détecté par la caméra cible ou saisi sur la télécommande, avec le groupement (centre et dispersion) de la volée et de la séance.
+- **Annulation** d'un faux lâcher (tir du voisin capté par le micro).
 - **Écran et télécommande séparés** : la TV affiche, le téléphone pilote (QR code à l'écran pour se connecter).
-- **Export USB** : un dossier par flèche, avec un fichier par caméra et un récapitulatif CSV.
+- **Sauvegarde sur la clé de l'archer**, volée par volée : un dossier par flèche, un fichier par caméra, récapitulatifs CSV. Sans clé, rien n'est conservé ; le serveur est vidé en fin de séance et au démarrage.
 - **Caméra cible** (prototype) : position de l'impact en millimètres et score World Archery.
 - **Fonctionne hors ligne** : le serveur crée son propre réseau Wi-Fi.
 - **Multi-plateforme** : images Docker arm64 et amd64 (Pi 5, Pi 4, mini-PC Intel N100, portable).

@@ -16,9 +16,14 @@ def maintenant() -> datetime:
     return datetime.now().astimezone()
 
 
-def nouvel_id_seance(heure: Optional[datetime] = None) -> str:
+def nouvel_id_seance(heure: Optional[datetime] = None, precedent: Optional[str] = None) -> str:
+    """Nom du dossier de séance, unique même si on en ouvre deux dans la même seconde."""
     heure = heure or maintenant()
-    return heure.strftime("%Y-%m-%d_%Hh%M")
+    base = heure.strftime("%Y-%m-%d_%Hh%Mm%S")
+    if precedent is None or not precedent.startswith(base):
+        return base
+    suffixe = precedent[len(base):].lstrip("-")
+    return f"{base}-{int(suffixe) + 1 if suffixe.isdigit() else 2}"
 
 
 def etat_initial(config: Config, heure: Optional[datetime] = None) -> dict:
@@ -36,6 +41,7 @@ def etat_initial(config: Config, heure: Optional[datetime] = None) -> dict:
         },
         "afficher_qr": True,
         "fleches": [],
+        "volees_archivees": [],  # volées dont les fichiers ont quitté le serveur
         "rejeu": None,
     }
 
@@ -97,6 +103,7 @@ def enregistrer_lacher(etat: dict, config: Config, heure: datetime) -> Optional[
         "dossier": str(dossier),
         "clips": {},  # id caméra -> chemin relatif du fichier
         "impact": None,
+        "archivee": False,  # vrai quand les clips ont quitté le serveur (clé USB ou purge)
     }
     fleches.append(fleche)
     return fleche
@@ -113,11 +120,110 @@ def nouvelle_volee(etat: dict) -> bool:
 
 def nouvelle_seance(etat: dict, heure: Optional[datetime] = None) -> None:
     heure = heure or maintenant()
-    etat["seance"] = {"id": nouvel_id_seance(heure), "debut": heure.isoformat()}
+    precedent = (etat.get("seance") or {}).get("id")
+    etat["seance"] = {"id": nouvel_id_seance(heure, precedent), "debut": heure.isoformat()}
     etat["volee"] = 1
     etat["fleche"] = 0
     etat["fleches"] = []
+    etat["volees_archivees"] = []
     etat["rejeu"] = None
+
+
+def annuler_derniere(etat: dict) -> Optional[dict]:
+    """Retire la dernière flèche (faux lâcher), si elle appartient à la volée en cours.
+
+    Renvoie la flèche retirée, ou None s'il n'y a rien à annuler.
+    """
+    if not etat["fleches"] or etat["fleche"] == 0:
+        return None
+    f = etat["fleches"][-1]
+    if f["volee"] != etat["volee"] or f.get("archivee"):
+        return None
+    etat["fleches"].pop()
+    etat["fleche"] = f["numero"] - 1
+    rejeu = etat.get("rejeu")
+    if rejeu and f["id"] in (rejeu.get("fleche_id"), rejeu.get("fleche_id_b")):
+        etat["rejeu"] = None
+    return f
+
+
+def volees_a_archiver(etat: dict, toutes: bool = False) -> list[int]:
+    """Volées terminées dont les fichiers sont encore sur le serveur.
+
+    Une volée attend que tous ses clips soient découpés. `toutes` inclut la
+    volée en cours (fin de séance).
+    """
+    deja = set(etat.get("volees_archivees", []))
+    resultat = []
+    for v in sorted({f["volee"] for f in etat["fleches"]}):
+        if v in deja or (v >= etat["volee"] and not toutes):
+            continue
+        if any(f["statut"] == "en_cours" for f in etat["fleches"] if f["volee"] == v):
+            continue
+        resultat.append(v)
+    return resultat
+
+
+def marquer_archivee(etat: dict, volee: int) -> None:
+    """Les fichiers de la volée ne sont plus sur le serveur : on garde scores et positions."""
+    if volee not in etat.setdefault("volees_archivees", []):
+        etat["volees_archivees"].append(volee)
+    for f in etat["fleches"]:
+        if f["volee"] == volee:
+            f["archivee"] = True
+            f["clips"] = {}
+            if f.get("impact"):
+                f["impact"]["image"] = None
+    rejeu = etat.get("rejeu")
+    if rejeu:
+        ids = {f["id"] for f in etat["fleches"] if f["volee"] == volee}
+        if ids & {rejeu.get("fleche_id"), rejeu.get("fleche_id_b")}:
+            etat["rejeu"] = None
+
+
+def dossier_volee(seance_id: str, volee: int) -> PurePosixPath:
+    return PurePosixPath(seance_id) / f"volee{volee:02d}"
+
+
+def impact_manuel(f: dict, score: int, est_x: bool) -> dict:
+    """Score saisi à la main : garde la position mesurée s'il y en a une."""
+    impact = dict(f.get("impact") or {
+        "x_mm": None, "y_mm": None, "diametre_mm": None, "image": None,
+    })
+    impact["score"] = score
+    impact["x"] = bool(est_x) and score == 10
+    impact["manuel"] = True
+    return impact
+
+
+def groupement(impacts: list[dict]) -> Optional[dict]:
+    """Centre et dispersion d'un ensemble d'impacts positionnés (au moins 2).
+
+    La dispersion est la distance moyenne des impacts au centre, en mm.
+    """
+    points = [(i["x_mm"], i["y_mm"]) for i in impacts
+              if i and i.get("x_mm") is not None and i.get("y_mm") is not None]
+    if len(points) < 2:
+        return None
+    cx = sum(p[0] for p in points) / len(points)
+    cy = sum(p[1] for p in points) / len(points)
+    dispersion = sum(((x - cx) ** 2 + (y - cy) ** 2) ** 0.5 for x, y in points) / len(points)
+    return {"n": len(points), "centre_x_mm": round(cx, 1), "centre_y_mm": round(cy, 1),
+            "dispersion_mm": round(dispersion, 1)}
+
+
+def groupements(etat: dict) -> dict:
+    """Groupement de la volée en cours, de la séance, et de chaque volée."""
+    par_volee = {}
+    for v in sorted({f["volee"] for f in etat["fleches"]}):
+        g = groupement([f["impact"] for f in etat["fleches"] if f["volee"] == v])
+        if g:
+            par_volee[v] = g
+    return {
+        "volee": par_volee.get(etat["volee"]),
+        "seance": groupement([f["impact"] for f in etat["fleches"]]),
+        "par_volee": par_volee,
+    }
 
 
 def trouver_fleche(etat: dict, fleche_id: Optional[str]) -> Optional[dict]:
@@ -154,6 +260,7 @@ def score_wa(distance_mm: float, diametre_mm: float, rayon_fleche_mm: float = 2.
 
 
 CSV_ENTETE = "volee;fleche;heure;score;x;x_mm;y_mm;statut;fichiers\n"
+CSV_GROUPEMENTS_ENTETE = "volee;impacts;centre_x_mm;centre_y_mm;dispersion_mm\n"
 
 
 def ligne_csv(f: dict) -> str:
@@ -176,3 +283,14 @@ def ligne_csv(f: dict) -> str:
 
 def contenu_csv(etat: dict) -> str:
     return CSV_ENTETE + "".join(ligne_csv(f) for f in etat["fleches"])
+
+
+def contenu_csv_groupements(etat: dict) -> str:
+    g = groupements(etat)
+    lignes = [(str(v), d) for v, d in g["par_volee"].items()]
+    if g["seance"]:
+        lignes.append(("seance", g["seance"]))
+    return CSV_GROUPEMENTS_ENTETE + "".join(
+        f"{nom};{d['n']};{d['centre_x_mm']:.1f};{d['centre_y_mm']:.1f};{d['dispersion_mm']:.1f}\n"
+        for nom, d in lignes
+    )

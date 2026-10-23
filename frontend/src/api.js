@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { codeDepuisAdresse } from "./logique";
+
+export { camerasVisibles, urlFichier } from "./logique";
 
 /**
  * Abonnement à l'état partagé du serveur (WebSocket, reconnexion automatique).
@@ -57,34 +60,45 @@ export function useEtat() {
   return { etat, connecte, decalage };
 }
 
-export async function commande(action, params = {}) {
-  const r = await fetch("/api/commande", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...params }),
-  });
-  if (!r.ok) {
-    const corps = await r.json().catch(() => ({}));
-    throw new Error(corps.detail || `Erreur ${r.status}`);
+const CLE_CODE = "arc-replay-code";
+
+function lireMemoire() {
+  try {
+    return localStorage.getItem(CLE_CODE);
+  } catch {
+    return null;
   }
-  return r.json();
 }
 
-export async function recharger() {
-  const r = await fetch("/api/recharger", { method: "POST" });
-  const corps = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(corps.detail || `Erreur ${r.status}`);
-  return corps;
+/** Code de la télécommande : ?code=… dans l'adresse (QR code), sinon mémorisé sur l'appareil. */
+export function codeTelecommande() {
+  const code = codeDepuisAdresse(location.search, lireMemoire());
+  if (code) memoriserCode(code);
+  return code;
 }
 
-export const urlFichier = (relatif) => `/fichiers/${relatif.split("/").map(encodeURIComponent).join("/")}`;
-
-/** Caméras visibles, dans l'ordre choisi. */
-export function camerasVisibles(etat) {
-  if (!etat) return [];
-  const parId = Object.fromEntries(etat.cameras.map((c) => [c.id, c]));
-  return etat.disposition.ordre
-    .filter((id) => parId[id] && !etat.disposition.masquees.includes(id))
-    .map((id) => parId[id]);
+export function memoriserCode(code) {
+  try {
+    localStorage.setItem(CLE_CODE, code);
+  } catch {
+    // navigation privée : le code sera redemandé
+  }
 }
 
+async function envoyer(url, corps) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Arc-Code": codeTelecommande() },
+    body: corps === undefined ? undefined : JSON.stringify(corps),
+  });
+  const reponse = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const erreur = new Error(reponse.detail || `Erreur ${r.status}`);
+    erreur.codeRequis = r.status === 403;
+    throw erreur;
+  }
+  return reponse;
+}
+
+export const commande = (action, params = {}) => envoyer("/api/commande", { action, ...params });
+export const recharger = () => envoyer("/api/recharger");

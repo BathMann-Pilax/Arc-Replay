@@ -39,7 +39,7 @@ Sur une tablette seule, ouvrez `http://10.42.0.1/?controles` : un bouton « Comm
 ### Affichage
 
 - **Retard** : de 3 à 30 s. Changement immédiat sur l'écran.
-- **Droitier / Gaucher** : les vues marquées `miroir_gaucher` sont retournées pour un gaucher, ce qui permet de comparer avec des références de droitier. Pensez aussi à déplacer physiquement la caméra de profil, qui doit filmer côté visage et poitrine.
+- **Droitier / Gaucher** : indique la latéralité de l'archer, enregistrée avec chaque flèche. Les images ne sont jamais retournées : le changement de côté est physique (écran sur support roulant, caméra de profil), voir [Changer de côté](#changer-de-côté-droitier--gaucher).
 - **Caméras** : ↑ ↓ pour l'ordre, ⤢ pour agrandir une vue (les autres passent en bande latérale), ● / ○ pour masquer ou afficher.
 
 ### Clé USB
@@ -78,5 +78,15 @@ arc-replay/
 | Arrière | Derrière l'archer, dans l'axe de la flèche : alignement épaules, bras d'arc, corde. |
 | Dessus | Au plafond ou sur perche : alignement des épaules et de la flèche. |
 | 3/4 face | Entre profil et face, côté visage : ancrage et tension du dos. |
+
+## Changer de côté (droitier / gaucher)
+
+L'image n'est pas inversée : c'est le matériel qui change de côté.
+
+- **Écran** : posé sur un support en bois à roulettes, on le pousse du côté vers lequel l'archer est tourné (côté visage et poitrine, le même que la caméra de profil), hors de la trajectoire des flèches et assez près pour lire le rejeu sans quitter sa position.
+- **Caméra de profil** (et 3/4 face) : à déplacer aussi, elle doit filmer côté visage et poitrine.
+- **Télécommande** : appuyer sur « Droitier » ou « Gaucher » pour que la latéralité soit notée dans les fichiers de la séance.
+
+Conseils pour le support : roulettes avec frein pour qu'il ne bouge pas pendant la volée, pied assez large (ou lesté) pour ne pas basculer, écran fixé par une attache VESA, et une rallonge assez longue pour passer d'un côté à l'autre sans débrancher. Si l'écran est en Wi-Fi ou relié par un câble HDMI long, rien d'autre à reconnecter.
 
 En salle, filmez à 100 i/s plutôt que 120 : à 120 i/s, l'éclairage sur secteur 50 Hz fait scintiller l'image.

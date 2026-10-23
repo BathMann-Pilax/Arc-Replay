@@ -88,4 +88,3 @@ export function camerasVisibles(etat) {
     .map((id) => parId[id]);
 }
 
-export const estMiroir = (camera, etat) => etat?.lateralite === "gaucher" && camera.miroir_gaucher;

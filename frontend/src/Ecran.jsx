@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { camerasVisibles, estMiroir, useEtat } from "./api";
+import { camerasVisibles, useEtat } from "./api";
 import MiniCible from "./MiniCible";
 import Rejeu from "./Rejeu";
 import Telecommande from "./Telecommande";
@@ -43,7 +43,7 @@ export default function Ecran() {
 
   const vue = (c, etiquette = true) => (
     <VueLive key={c.id} camera={c} delai={etat.delai_s} decalage={decalage}
-      miroir={estMiroir(c, etat)} etiquette={etiquette} />
+      etiquette={etiquette} />
   );
 
   return (

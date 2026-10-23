@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
  * même heure, elles restent donc synchronisées entre elles.
  * Sans date dans le flux, on se rabat sur « bord du direct − délai ».
  */
-export default function VueLive({ camera, delai, decalage, miroir, etiquette = true }) {
+export default function VueLive({ camera, delai, decalage, etiquette = true }) {
   const videoRef = useRef(null);
   const reglages = useRef({ delai, decalage });
   reglages.current = { delai, decalage };
@@ -95,13 +95,11 @@ export default function VueLive({ camera, delai, decalage, miroir, etiquette = t
         muted
         playsInline
         autoPlay
-        style={miroir ? { transform: "scaleX(-1)" } : undefined}
       />
       {etiquette && (
         <div className="vue__etiquette">
           {camera.nom}
           {camera.ralenti && <span className="pastille">{camera.fps} i/s</span>}
-          {miroir && <span className="pastille">miroir</span>}
         </div>
       )}
       {statut !== "ok" && (

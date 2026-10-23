@@ -25,7 +25,7 @@ flowchart LR
 
 - **Mosaïque en différé** : 1 à 9 vues synchronisées, retard réglable de 3 à 30 s.
 - **Ajout de caméras sans code** : une entrée dans `config/arc-replay.yml` (USB, nœud Raspberry Pi ou caméra IP).
-- **Gaucher / droitier** : bascule en un geste, avec image en miroir pour les vues choisies.
+- **Gaucher / droitier** : pas d'image inversée, l'écran se déplace sur un support à roulettes pour rester du côté de l'archer ; la latéralité est notée avec chaque flèche.
 - **Une flèche = un dossier de clips** : détection du lâcher au micro, ou bouton « marquer ».
 - **Rejeu** de n'importe quelle flèche, toutes vues ensemble, en vitesse réelle, ×0,5 ou ×0,25.
 - **Écran et télécommande séparés** : la TV affiche, le téléphone pilote (QR code à l'écran pour se connecter).

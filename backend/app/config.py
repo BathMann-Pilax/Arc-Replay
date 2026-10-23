@@ -32,7 +32,6 @@ class Camera(BaseModel):
     url: Optional[str] = None
 
     # Affichage
-    miroir_gaucher: bool = False
     ralenti: bool = False
 
     @field_validator("id")

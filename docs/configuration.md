@@ -7,7 +7,7 @@ Tout se règle dans `config/arc-replay.yml`. Après une modification : bouton **
 | Clé | Défaut | Rôle |
 |---|---|---|
 | `delai_s` | `10` | Retard d'affichage au démarrage (1 à 30 s). Modifiable ensuite depuis la télécommande. |
-| `lateralite` | `droitier` | `droitier` ou `gaucher` au démarrage. |
+| `lateralite` | `droitier` | `droitier` ou `gaucher` au démarrage. Simple information (enregistrée avec chaque flèche) : aucune image n'est retournée. |
 | `usb_chemin` | `/media/hote/arc-usb` | Point de montage de la clé, vu depuis le conteneur (`/media/arc-usb` sur l'hôte). |
 | `usb_verifier_montage` | `true` | `false` pour tester l'export vers un simple dossier. |
 
@@ -48,7 +48,6 @@ L'ordre de la liste est l'ordre par défaut de la mosaïque ; il se change ensui
 | `id` | oui | Identifiant court : minuscules, chiffres, `-` et `_`. Sert dans les noms de fichiers (`V01_F2_<id>.mp4`). |
 | `nom` | oui | Nom affiché. |
 | `type` | oui | `usb`, `reseau` ou `rtsp`. |
-| `miroir_gaucher` | non | Retourne l'image horizontalement quand la latéralité est « gaucher ». |
 | `ralenti` | non | Signale une caméra rapide (badge « 100 i/s » à l'écran). |
 
 ### Caméra USB (`type: usb`)
@@ -97,7 +96,6 @@ cameras:
     largeur: 1280
     hauteur: 720
     fps: 30
-    miroir_gaucher: true
 ```
 
 ## Variables d'environnement (`.env`)

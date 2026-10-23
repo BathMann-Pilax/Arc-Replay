@@ -112,7 +112,6 @@ class Serveur:
                     "nom": c.nom,
                     "type": c.type,
                     "fps": c.fps,
-                    "miroir_gaucher": c.miroir_gaucher,
                     "ralenti": c.ralenti,
                 }
                 for c in self.config.cameras

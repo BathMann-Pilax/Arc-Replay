@@ -37,7 +37,6 @@ cameras:
     fps: 30
     encodeur: libx264       # libx264 | copy (caméra H.264) | vaapi (Intel N100) | v4l2m2m (Pi 4)
     debit: 4M
-    miroir_gaucher: true    # retourne l'image quand la latéralité est « gaucher »
 
   - id: face
     nom: Face (ralenti)

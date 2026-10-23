@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { camerasVisibles, estMiroir, urlFichier } from "./api";
+import { camerasVisibles, urlFichier } from "./api";
 
 /**
  * Rejeu synchronisé d'une flèche : un clip par caméra, joués ensemble en boucle.
@@ -65,7 +65,6 @@ export default function Rejeu({ etat }) {
               playsInline
               loop
               autoPlay
-              style={estMiroir(c, etat) ? { transform: "scaleX(-1)" } : undefined}
             />
             <div className="vue__etiquette">{c.nom}</div>
           </div>

@@ -60,6 +60,7 @@ cd backend && pip install pytest && pytest -q
 cd noeuds/cible && pip install opencv-python-headless numpy pyyaml pytest && pytest -q
 cd detecteur-lacher && pip install numpy pytest && pytest -q
 cd frontend && npm test && npm run build
+cd frontend && VITE_SOLO=1 npx vite build --outDir dist-solo   # mode solo seul (GitHub Pages)
 ```
 
 La CI GitHub Actions lance ces mêmes tests, puis construit et publie les images Docker arm64/amd64.

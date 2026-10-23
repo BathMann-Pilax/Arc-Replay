@@ -1,0 +1,26 @@
+{
+  "name": "Arc Replay solo",
+  "short_name": "Arc Replay",
+  "description": "Retour vidéo différé pour le tir à l'arc, avec la caméra de la tablette ou du PC.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0e1013",
+  "theme_color": "#0e1013",
+  "icons": [
+    {
+      "src": "icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

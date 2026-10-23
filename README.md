@@ -4,6 +4,8 @@ Retour vidéo différé multi-caméras pour le tir à l'arc.
 
 L'archer tire, puis voit son geste sur un écran **avec quelques secondes de retard** (10 s par défaut), sous plusieurs angles à la fois. Chaque flèche est découpée en clips que l'on peut rejouer au ralenti ou comparer depuis une télécommande (téléphone ou tablette). Le serveur ne garde que la volée en cours : l'archer qui veut ses vidéos branche sa clé USB, et chaque volée y part automatiquement. Une caméra placée dans le coffre de la cible peut localiser l'impact et calculer le score.
 
+En déplacement, le **[mode solo](docs/mode-solo.md)** fait le retour vidéo différé avec la seule caméra d'une tablette ou d'un PC, sans serveur : https://bathmann-pilax.github.io/Arc-Replay/
+
 ```mermaid
 flowchart LR
   subgraph Pas de tir
@@ -67,7 +69,8 @@ Le guide complet est dans [docs/installation.md](docs/installation.md).
 | [Architecture](docs/architecture.md) | Composants, flux vidéo, synchronisation, choix techniques |
 | [Installation](docs/installation.md) | Serveur, caméras USB, nœuds Raspberry Pi, écran TV |
 | [Configuration](docs/configuration.md) | Référence complète de `arc-replay.yml` |
-| [Utilisation](docs/utilisation.md) | Écran, télécommande, rejeu, export USB |
+| [Utilisation](docs/utilisation.md) | Écran, télécommande, rejeu, clé USB |
+| [Mode solo](docs/mode-solo.md) | Une tablette ou un PC seul, avec sa propre caméra, sans serveur |
 | [Nœud cible](docs/noeud-cible.md) | Montage, calibration et réglage de la détection d'impact |
 | [Développement](docs/developpement.md) | Lancer le projet sans Docker ni caméra, tests |
 | [Feuille de route](docs/feuille-de-route.md) | Idées et prochaines étapes |

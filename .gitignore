@@ -13,3 +13,4 @@ noeuds/cible/calibration.json
 auto.key
 auto.crt
 .DS_Store
+frontend/dist-solo/

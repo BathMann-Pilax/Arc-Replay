@@ -211,3 +211,31 @@ progress { width: 100%; height: 10px; accent-color: var(--or); }
 .vue--superposee video + video { position: absolute; inset: 0; width: 100%; height: 100%; }
 .legende--a { color: var(--or); }
 .legende--b { color: #00e5ff; }
+
+/* ---------- Mode solo ---------- */
+
+.solo-accueil {
+  max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px;
+  height: 100%; overflow-y: auto;
+}
+.solo-accueil h1 { margin: 8px 0 0; font-size: 1.5rem; }
+.solo-accueil p { margin: 0; line-height: 1.45; color: var(--texte-doux); }
+.solo-choix { display: flex; flex-direction: column; gap: 6px; }
+.solo-choix > span { font-size: 0.85rem; color: var(--texte-doux); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.solo { position: relative; height: 100vh; height: 100dvh; width: 100vw; background: #000; overflow: hidden; }
+.solo__ecrans { position: absolute; inset: 0; display: grid; gap: 4px; }
+.solo__ecrans--deux { grid-template-columns: 1fr 1fr; }
+.solo__ecrans canvas { width: 100%; height: 100%; object-fit: contain; display: block; min-width: 0; min-height: 0; }
+.solo--miroir .solo__ecrans canvas { transform: scaleX(-1); }
+.solo__barre {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75) 35%);
+}
+.solo__barre .rangee { flex-wrap: wrap; }
+.solo__barre .bouton { flex: 1 1 auto; }
+.solo__fleches { display: flex; gap: 6px; overflow-x: auto; }
+.solo__fleches .fleche { min-width: 56px; padding: 4px; }
+.solo__panneau { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.solo__panneau meter { width: 100%; height: 10px; }

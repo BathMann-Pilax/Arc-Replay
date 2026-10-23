@@ -5,8 +5,24 @@ import react from "@vitejs/plugin-react";
 const backend = process.env.ARC_BACKEND || "http://localhost:8000";
 const hls = process.env.ARC_HLS || "http://localhost:8888";
 
+// Version « mode solo » seule, publiée en https (GitHub Pages) : VITE_SOLO=1.
+// Elle s'installe comme une application et marche hors ligne.
+const solo = process.env.VITE_SOLO === "1";
+const enTetesSolo = {
+  name: "entetes-solo",
+  transformIndexHtml: (html) => solo
+    ? html
+      .replace("<title>Arc Replay</title>", "<title>Arc Replay solo</title>")
+      .replace("</head>", `    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+  </head>`)
+    : html,
+};
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), enTetesSolo],
+  // Adresses relatives : la version solo marche quel que soit le dossier d'hébergement
+  base: solo ? "./" : "/",
   build: { chunkSizeWarningLimit: 1000 }, // hls.js pèse à lui seul ~500 ko
   server: {
     host: true,

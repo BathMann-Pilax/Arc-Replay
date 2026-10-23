@@ -1,0 +1,44 @@
+name: Mode solo (GitHub Pages)
+
+# Publie le mode solo en https : https://<compte>.github.io/<dépôt>/
+# À activer une fois : Settings → Pages → Source : « GitHub Actions ».
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", ".github/workflows/solo.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Construction
+        working-directory: frontend
+        env:
+          VITE_SOLO: "1"
+        run: |
+          npm ci
+          npm test
+          npx vite build --outDir dist-solo
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist-solo
+      - id: deploiement
+        uses: actions/deploy-pages@v4

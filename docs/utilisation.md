@@ -21,6 +21,8 @@ L'écran ne demande aucune interaction : il suit la télécommande. Plusieurs é
 
 Sur une tablette seule, ouvrez `http://10.42.0.1/?controles` : un bouton « Commandes » ouvre la télécommande dans un panneau latéral.
 
+Sans serveur du tout, avec la caméra de la tablette ou du PC : voir le [mode solo](mode-solo.md).
+
 ## La télécommande
 
 ### Rejeu

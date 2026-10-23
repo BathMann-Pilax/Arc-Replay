@@ -1,0 +1,67 @@
+# Configuration d'Arc Replay
+# Après modification : bouton « Recharger la configuration » dans la télécommande,
+# ou `docker compose restart backend`.
+
+serveur:
+  delai_s: 10               # retard d'affichage par défaut (3 à 30 s)
+  lateralite: droitier      # droitier | gaucher
+  usb_chemin: /media/hote/arc-usb   # point de montage de la clé, vu depuis le conteneur
+  usb_verifier_montage: true        # false pour tester l'export sans vraie clé
+
+volees:
+  fleches_par_volee: 6      # au-delà, la flèche suivante ouvre une nouvelle volée
+  nouvelle_apres_s: 90      # pause sans tir au-delà de laquelle on change de volée
+
+clips:
+  avant_s: 6                # secondes conservées avant le lâcher
+  apres_s: 3                # secondes conservées après le lâcher
+  marge_s: 2                # attente avant la découpe (écriture des enregistrements)
+
+lacher:
+  anti_rebond_s: 2          # ignore un second lâcher détecté trop tôt
+  decalage_manuel_s: 1.0    # bouton « marquer » : le tir a eu lieu ~1 s avant l'appui
+
+# Liste des caméras. L'ordre ici est l'ordre par défaut dans la mosaïque.
+# Types :
+#   usb    : caméra branchée sur le serveur (lue et encodée par MediaMTX via ffmpeg)
+#   reseau : nœud Raspberry Pi qui publie lui-même son flux vers le serveur
+#   rtsp   : caméra IP du commerce que le serveur va chercher
+cameras:
+  - id: profil
+    nom: Profil
+    type: usb
+    peripherique: /dev/v4l/by-id/usb-REMPLACER-video-index0
+    format_entree: mjpeg    # mjpeg | h264 | yuyv422
+    largeur: 1280
+    hauteur: 720
+    fps: 30
+    encodeur: libx264       # libx264 | copy (caméra H.264) | vaapi (Intel N100) | v4l2m2m (Pi 4)
+    debit: 4M
+    miroir_gaucher: true    # retourne l'image quand la latéralité est « gaucher »
+
+  - id: face
+    nom: Face (ralenti)
+    type: usb
+    peripherique: /dev/v4l/by-id/usb-REMPLACER-video-index0
+    format_entree: mjpeg
+    largeur: 1280
+    hauteur: 720
+    fps: 100                # 100 fps en salle (éclairage 50 Hz), 120 fps en extérieur
+    encodeur: libx264
+    debit: 10M
+    ralenti: true
+
+  - id: arriere
+    nom: Arrière
+    type: usb
+    peripherique: /dev/v4l/by-id/usb-REMPLACER-video-index0
+    format_entree: mjpeg
+    largeur: 1280
+    hauteur: 720
+    fps: 30
+    encodeur: libx264
+    debit: 4M
+
+  - id: cible
+    nom: Cible
+    type: reseau            # publié par le Pi 4 du coffre de cible (noeuds/cible)

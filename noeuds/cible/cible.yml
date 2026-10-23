@@ -1,0 +1,22 @@
+# Nœud cible Arc Replay
+serveur: 10.42.0.1          # adresse du serveur (point d'accès Wi-Fi du Pi 5)
+chemin: cible               # = id de la caméra dans config/arc-replay.yml
+
+# Flux vidéo envoyé à la mosaïque
+largeur: 1920
+hauteur: 1080
+fps: 30
+debit: 6000000
+
+# Analyse : images basse définition en niveaux de gris
+lores: [640, 480]           # la calibration est faite à cette résolution
+analyse_fps: 4
+calibration: /opt/arc-replay/cible/calibration.json
+attente_apres_lacher_s: 2.5 # temps de vol + vibration du tube (70 m : ~1 s de vol)
+
+# Côté de la zone détectée où se trouve l'entrée dans le blason.
+# Le tube dépasse vers la caméra : caméra sous la cible -> « haut »,
+# caméra au-dessus -> « bas ». À vérifier avec une flèche plantée à la main.
+extremite: haut
+seuil: 30                   # sensibilité (plus bas = plus sensible)
+aire_min: 30                # taille minimale d'une zone, en pixels

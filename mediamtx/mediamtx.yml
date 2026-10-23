@@ -1,0 +1,58 @@
+# Configuration MediaMTX du serveur Arc Replay.
+# Les chemins (une entrée par caméra) sont créés au démarrage par le back-end
+# via l'API de contrôle, à partir de config/arc-replay.yml.
+
+logLevel: info
+
+# Réseau local fermé : tout le monde peut publier, lire et rejouer.
+# Ne pas exposer ce serveur sur internet sans ajouter d'authentification.
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+      - action: api
+
+# API de contrôle (utilisée par le back-end pour créer les chemins)
+api: yes
+apiAddress: :9997
+
+# Serveur de relecture : découpe des clips dans les enregistrements
+playback: yes
+playbackAddress: :9996
+
+# RTSP : les nœuds caméra publient ici, les caméras USB aussi (via ffmpeg)
+rtsp: yes
+rtspAddress: :8554
+
+rtmp: no
+srt: no
+webrtc: no
+moq: no    # supprimer cette ligne si une ancienne version de MediaMTX la refuse
+
+# HLS : flux lus par l'écran avec un retard. La fenêtre doit dépasser le
+# délai maximal (30 s) : 40 segments d'une seconde.
+# hlsAlwaysRemux garde la fenêtre à jour même sans spectateur, pour que
+# l'écran ait immédiatement 10 s d'historique à l'ouverture.
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: fmp4
+hlsSegmentCount: 40
+hlsSegmentDuration: 1s
+
+pathDefaults:
+  # Enregistrement continu en petits fichiers, purgés après 3 h.
+  # Les clips de chaque flèche sont extraits dans /data avant la purge.
+  record: yes
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f_%z
+  recordFormat: fmp4
+  recordPartDuration: 1s
+  recordSegmentDuration: 10m
+  recordDeleteAfter: 3h
+
+paths:
+  all_others:

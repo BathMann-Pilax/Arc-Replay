@@ -1,0 +1,6 @@
+# Arc Replay : monte automatiquement la première partition d'une clé USB
+# dans /media/arc-usb (lisible par le conteneur backend), et la démonte au retrait.
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partition", ENV{ID_FS_USAGE}=="filesystem", \
+  RUN+="/usr/bin/systemd-mount --no-block --collect --options=uid=1000,gid=1000,umask=000,noatime $devnode /media/arc-usb"
+ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partition", \
+  RUN+="/usr/bin/systemd-umount /media/arc-usb"

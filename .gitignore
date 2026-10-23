@@ -1,0 +1,14 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
+data/
+*.part
+noeuds/cible/blason.jpg
+noeuds/cible/verification.jpg
+noeuds/cible/calibration.json
+auto.key
+auto.crt

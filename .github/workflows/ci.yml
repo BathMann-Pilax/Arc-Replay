@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Back-end
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt pytest
+          pytest -q
+      - name: Nœud cible et détecteur de lâcher
+        run: |
+          pip install opencv-python-headless numpy pyyaml
+          (cd noeuds/cible && pytest -q)
+          (cd detecteur-lacher && pytest -q)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Interface
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  images:
+    # Images multi-architecture (Pi 5 / Pi 4 en arm64, mini-PC en amd64) sur GHCR
+    needs: tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        composant: [backend, frontend, detecteur-lacher]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/arc-replay-${{ matrix.composant == 'detecteur-lacher' && 'detecteur' || matrix.composant }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.composant }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.composant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.composant }}

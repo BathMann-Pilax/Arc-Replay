@@ -1,0 +1,17 @@
+[Unit]
+Description=Arc Replay - nœud caméra (publication RTSP vers le serveur)
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/default/arc-replay-camera
+ExecStart=/usr/bin/python3 /opt/arc-replay/camera/streamer.py \
+    --serveur ${ARC_SERVEUR} --chemin ${ARC_CHEMIN} \
+    --largeur ${ARC_LARGEUR} --hauteur ${ARC_HAUTEUR} --fps ${ARC_FPS} --debit ${ARC_DEBIT}
+Restart=always
+RestartSec=5
+User=arc
+SupplementaryGroups=video
+
+[Install]
+WantedBy=multi-user.target

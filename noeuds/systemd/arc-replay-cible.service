@@ -1,0 +1,15 @@
+[Unit]
+Description=Arc Replay - nœud cible (vidéo + détection des impacts)
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/arc-replay/cible/cible.py --config /opt/arc-replay/cible/cible.yml
+WorkingDirectory=/opt/arc-replay/cible
+Restart=always
+RestartSec=5
+User=arc
+SupplementaryGroups=video
+
+[Install]
+WantedBy=multi-user.target

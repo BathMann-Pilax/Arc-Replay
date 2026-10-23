@@ -1,0 +1,66 @@
+# Arc Replay — serveur (Pi 5, mini-PC, portable…)
+#   docker compose up -d                    # serveur seul
+#   docker compose --profile audio up -d    # + détection du lâcher au micro
+# Interface : http://<adresse-du-serveur>/ (écran) et /telecommande
+
+name: arc-replay
+
+x-commun: &commun
+  restart: unless-stopped
+  environment:
+    TZ: ${TZ:-Europe/Paris}
+
+services:
+  mediamtx:
+    <<: *commun
+    image: bluenviron/mediamtx:${MEDIAMTX_TAG:-latest-ffmpeg}
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - enregistrements:/recordings
+      # Caméras USB : /dev complet pour suivre les branchements à chaud
+      - /dev:/dev
+    device_cgroup_rules:
+      - "c 81:* rmw"    # caméras V4L2 (/dev/video*)
+      - "c 226:* rmw"   # GPU pour l'encodage VAAPI (/dev/dri)
+    ports:
+      - "8554:8554"     # RTSP : les nœuds caméra (Pi Zero, Pi 4) publient ici
+
+  backend:
+    <<: *commun
+    image: ${ARC_REGISTRE:-local}/arc-replay-backend:${ARC_VERSION:-latest}
+    build: ./backend
+    depends_on: [mediamtx]
+    volumes:
+      - ./config:/config:ro
+      - donnees:/data
+      # Clé USB montée par l'hôte dans /media/arc-usb (voir docs/installation.md).
+      # rslave : le conteneur voit la clé même si elle est branchée après le démarrage.
+      - /media:/media/hote:rslave
+
+  frontend:
+    <<: *commun
+    image: ${ARC_REGISTRE:-local}/arc-replay-frontend:${ARC_VERSION:-latest}
+    build: ./frontend
+    depends_on: [backend, mediamtx]
+    volumes:
+      - donnees:/data:ro   # nginx sert directement les clips
+    ports:
+      - "${ARC_PORT:-80}:80"
+
+  detecteur-lacher:
+    <<: *commun
+    profiles: [audio]
+    image: ${ARC_REGISTRE:-local}/arc-replay-detecteur:${ARC_VERSION:-latest}
+    build: ./detecteur-lacher
+    depends_on: [backend]
+    devices:
+      - /dev/snd:/dev/snd
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      ARC_SERVEUR: http://backend:8000
+      SEUIL_DB: ${SEUIL_DB:--20}
+      PERIPHERIQUE_AUDIO: ${PERIPHERIQUE_AUDIO:-}
+
+volumes:
+  enregistrements:
+  donnees:

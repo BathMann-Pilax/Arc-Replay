@@ -239,3 +239,12 @@ progress { width: 100%; height: 10px; accent-color: var(--or); }
 .solo__fleches .fleche { min-width: 56px; padding: 4px; }
 .solo__panneau { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
 .solo__panneau meter { width: 100%; height: 10px; }
+
+.camera {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  max-width: 480px; margin: 0 auto;
+}
+.camera__apercu { width: 100%; border-radius: 8px; background: #000; aspect-ratio: 16 / 9; }
+.camera--erreur { justify-content: center; height: 100vh; text-align: center; }
+.camera__micro { display: flex; flex-direction: column; gap: 8px; }
+.camera__micro meter { width: 100%; height: 10px; }

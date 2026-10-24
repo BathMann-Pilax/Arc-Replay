@@ -7,21 +7,30 @@ import Rejeu from "./Rejeu";
 import Telecommande from "./Telecommande";
 import VueLive from "./VueLive";
 
-function CodeTelecommande() {
+function Qr({ adresse, etiquette, texte }) {
   const [image, setImage] = useState(null);
-  // Si un code est configuré, ouvrir l'écran une fois avec ?code=… : le QR code le transmet
-  const adresse = adresseTelecommande(location.origin, codeTelecommande());
   useEffect(() => {
     QRCode.toDataURL(adresse, { margin: 1, width: 220 }).then(setImage);
   }, [adresse]);
   if (!image) return null;
   return (
     <div className="qr">
-      <img src={image} alt="QR code de la télécommande" />
-      <span>Télécommande</span>
-      <small>{`${location.origin}/telecommande`}</small>
+      <img src={image} alt={`QR code : ${etiquette}`} />
+      <span>{etiquette}</span>
+      <small>{texte ?? adresse}</small>
     </div>
   );
+}
+
+function CodeTelecommande() {
+  // Si un code est configuré, ouvrir l'écran une fois avec ?code=… : le QR code le transmet
+  const adresse = adresseTelecommande(location.origin, codeTelecommande());
+  return <Qr adresse={adresse} etiquette="Télécommande" texte={`${location.origin}/telecommande`} />;
+}
+
+function CodeCamera() {
+  const adresse = `https://${location.hostname}/camera`;
+  return <Qr adresse={adresse} etiquette="Ajouter une caméra" />;
 }
 
 export default function Ecran() {
@@ -82,7 +91,7 @@ export default function Ecran() {
         </div>
       )}
 
-      {etat.afficher_qr && !etat.rejeu && <CodeTelecommande />}
+      {etat.afficher_qr && !etat.rejeu && (etat.qr_type === "camera" ? <CodeCamera /> : <CodeTelecommande />)}
 
       {controles && (
         <>

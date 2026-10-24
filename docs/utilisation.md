@@ -97,6 +97,20 @@ arc-replay/
 
 Sur le Wi-Fi `ArcReplay`, protégé par mot de passe, il n'y a pas de code. Si le serveur est branché sur le réseau du club, réglez `code_telecommande` dans la configuration, puis ouvrez une fois l'écran avec `http://<serveur>/?code=<le code>` : le QR code affiché transmet le code au téléphone, qui le mémorise. Un appareil sans le code peut regarder, pas piloter ; la télécommande demande alors le code.
 
+## Ajouter une caméra depuis un téléphone
+
+Pas besoin de caméra USB pour une vue supplémentaire : dans la télécommande, section « Configuration », bouton « Ajouter une caméra depuis un téléphone » affiche un QR code. Sur le téléphone (même Wi-Fi que le serveur) :
+
+1. Scanner le QR code : la page s'ouvre en `https://`.
+2. Premier accès : avertissement « connexion non privée » (certificat local, pas une vraie attaque) → « Avancé » puis « Continuer ».
+3. Autoriser la caméra, donner un nom (ex. « tribune »), bouton « Démarrer ».
+
+La vue apparaît dans la mosaïque de l'écran sous ce nom, utilisable comme les autres caméras (rejeu, clips). Bouton « Arrêter » sur le téléphone pour la retirer. Rien n'est installé : fermer l'onglet revient au même que de débrancher une caméra.
+
+**Limite :** le flux dépend du réseau Wi-Fi (latence, qualité variable) ; à réserver aux vues secondaires, pas à la caméra de profil principale.
+
+La même page propose aussi une case « Micro : détecter le tir » (décochable indépendamment de la caméra) : le téléphone écoute le claquement de corde et signale le lâcher au serveur, comme le ferait le micro branché sur le serveur (`detecteur-lacher`). Un curseur permet de régler le seuil sur place.
+
 ## Changer de côté (droitier / gaucher)
 
 L'image n'est pas inversée : c'est le matériel qui change de côté.

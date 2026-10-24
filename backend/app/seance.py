@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Optional
 
-from .config import Config
+from .config import Camera, Config
 
 
 def maintenant() -> datetime:
@@ -40,15 +40,16 @@ def etat_initial(config: Config, heure: Optional[datetime] = None) -> dict:
             "focus": None,
         },
         "afficher_qr": True,
+        "qr_type": "telecommande",  # ou "camera" : lequel des deux QR codes l'écran affiche
         "fleches": [],
         "volees_archivees": [],  # volées dont les fichiers ont quitté le serveur
         "rejeu": None,
     }
 
 
-def reconcilier_disposition(etat: dict, config: Config) -> None:
+def reconcilier_disposition(etat: dict, cameras: list[Camera]) -> None:
     """Garde l'ordre choisi, retire les caméras disparues, ajoute les nouvelles."""
-    ids = [c.id for c in config.cameras]
+    ids = [c.id for c in cameras]
     disp = etat.setdefault("disposition", {"ordre": [], "masquees": [], "focus": None})
     ordre = [i for i in disp.get("ordre", []) if i in ids]
     ordre += [i for i in ids if i not in ordre]

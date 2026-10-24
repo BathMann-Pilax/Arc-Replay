@@ -48,6 +48,7 @@ services:
       - donnees:/data:ro   # nginx sert directement les clips
     ports:
       - "${ARC_PORT:-80}:80"
+      - "${ARC_PORT_HTTPS:-443}:443"   # requis pour ouvrir la caméra d'un téléphone (voir /camera)
 
   detecteur-lacher:
     <<: *commun

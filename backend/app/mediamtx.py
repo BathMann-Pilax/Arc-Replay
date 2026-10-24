@@ -68,6 +68,15 @@ async def _appliquer(client: httpx.AsyncClient, api: str, cam: Camera) -> None:
         raise RuntimeError(f"MediaMTX a refusé la caméra {cam.id} : {r.status_code} {r.text}")
 
 
+async def supprimer_chemin(api: str, cam_id: str) -> None:
+    """Retire un chemin ajouté dynamiquement (caméra d'un téléphone débranchée)."""
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            await client.post(f"{api}/v3/config/paths/delete/{cam_id}")
+        except httpx.HTTPError as e:
+            log.warning("suppression du chemin %s : %s", cam_id, e)
+
+
 async def synchroniser(api: str, cameras: list[Camera], tentatives: int = 60) -> list[str]:
     """Crée ou met à jour un chemin par caméra. Attend que MediaMTX réponde.
 

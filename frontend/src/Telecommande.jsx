@@ -36,6 +36,27 @@ function DemandeCode({ onValide }) {
   );
 }
 
+function AjoutCamera({ qrType, agir }) {
+  const surEcran = qrType === "camera";
+  return (
+    <>
+      <button
+        className={`bouton bouton--discret ${surEcran ? "bouton--actif" : ""}`}
+        onClick={() => agir("qr", { valeur: surEcran ? "telecommande" : "camera" })}
+      >
+        {surEcran ? "Afficher le QR de la télécommande sur l'écran" : "Ajouter une caméra depuis un téléphone"}
+      </button>
+      {surEcran && (
+        <p className="info">
+          QR code affiché sur l'écran : à scanner avec le téléphone qui filmera. Même réseau Wi-Fi
+          que le serveur. Premier accès : avertissement de sécurité (certificat local) à valider,
+          puis autoriser la caméra.
+        </p>
+      )}
+    </>
+  );
+}
+
 export default function Telecommande({ integree = false }) {
   const { etat, connecte } = useEtat();
   const [erreur, setErreur] = useState(null);
@@ -375,7 +396,7 @@ export default function Telecommande({ integree = false }) {
 
         <label className="interrupteur">
           <input type="checkbox" checked={etat.afficher_qr}
-            onChange={(e) => agir("qr", { valeur: e.target.checked })} />
+            onChange={(e) => agir("qr", e.target.checked ? { valeur: "telecommande" } : { valeur: false })} />
           Afficher le QR code sur l'écran
         </label>
       </Section>
@@ -406,6 +427,7 @@ export default function Telecommande({ integree = false }) {
       </Section>
 
       <Section titre="Configuration">
+        <AjoutCamera qrType={etat.qr_type} agir={agir} />
         {etat.disque?.libre_go != null && (
           <p className={`info ${espaceBas ? "info--erreur" : ""}`}>Espace libre sur le serveur : {etat.disque.libre_go} Go</p>
         )}

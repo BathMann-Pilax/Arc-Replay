@@ -14,6 +14,7 @@ import json
 import logging
 import math
 import os
+import secrets
 import shutil
 import uuid
 from contextlib import asynccontextmanager
@@ -41,6 +42,7 @@ class Serveur:
         self.clients: set[WebSocket] = set()
         self.taches: set[asyncio.Task] = set()
         self.verrou_archives = asyncio.Lock()  # une seule copie vers la clé à la fois
+        self.cameras_telephone: list[cfg.Camera] = []  # ajoutées depuis /camera, pas dans le yaml
         self.usb = {"presente": False, "libre_go": None}
         self.sauvegarde = {"etat": "inactif", "message": ""}
         self.disque = {"libre_go": None}
@@ -60,6 +62,9 @@ class Serveur:
     def dossier_seance(self) -> Path:
         return self.seances / self.etat["seance"]["id"]
 
+    def toutes_cameras(self) -> list[cfg.Camera]:
+        return self.config.cameras + self.cameras_telephone
+
     # --- persistance -------------------------------------------------------------
 
     def _charger_etat(self) -> dict:
@@ -73,13 +78,13 @@ class Serveur:
         if fichier.exists():
             try:
                 ancien = json.loads(fichier.read_text(encoding="utf-8"))
-                for cle in ("delai_s", "lateralite", "disposition", "afficher_qr"):
+                for cle in ("delai_s", "lateralite", "disposition", "afficher_qr", "qr_type"):
                     if cle in ancien:
                         etat[cle] = ancien[cle]
             except (OSError, ValueError, TypeError):
                 log.warning("etat.json illisible, réglages par défaut")
         self.purger_local()
-        seance.reconcilier_disposition(etat, self.config)
+        seance.reconcilier_disposition(etat, self.toutes_cameras())
         return etat
 
     def purger_local(self, garder: Optional[str] = None) -> None:
@@ -132,7 +137,7 @@ class Serveur:
                     "fps": c.fps,
                     "ralenti": c.ralenti,
                 }
-                for c in self.config.cameras
+                for c in self.toutes_cameras()
             ],
             "usb": {**self.usb, "sauvegarde": self.sauvegarde},
             "disque": {**self.disque, "alerte_go": self.config.serveur.alerte_espace_go},
@@ -206,7 +211,7 @@ class Serveur:
                 log.warning("clip %s / %s : %s", fleche_id, cam_id, e)
                 return None
 
-        ids = [cam.id for cam in self.config.cameras]
+        ids = [cam.id for cam in self.toutes_cameras()]
         async with httpx.AsyncClient() as client:
             resultats = await asyncio.gather(*(une_camera(client, i) for i in ids))
         reussis = {i: r for i, r in zip(ids, resultats) if r}
@@ -359,7 +364,7 @@ class Serveur:
 
     async def appliquer_cameras(self) -> None:
         self.erreurs_cameras = await mediamtx.synchroniser(
-            self.config.serveur.mediamtx_api, self.config.cameras
+            self.config.serveur.mediamtx_api, self.toutes_cameras()
         )
         await self.diffuser(sauver=False)
 
@@ -367,7 +372,7 @@ class Serveur:
         nouvelle = cfg.charger()
         async with self.verrou:
             self.config = nouvelle
-            seance.reconcilier_disposition(self.etat, nouvelle)
+            seance.reconcilier_disposition(self.etat, self.toutes_cameras())
             await self.diffuser()
         await self.appliquer_cameras()
 
@@ -389,6 +394,10 @@ class DemandeImpact(BaseModel):
     score: Optional[int] = Field(None, ge=0, le=10)
     x: Optional[bool] = None
     image_jpeg_b64: Optional[str] = None
+
+
+class DemandeCameraTelephone(BaseModel):
+    nom: str = Field(min_length=1, max_length=40)
 
 
 class Commande(BaseModel):
@@ -483,10 +492,40 @@ async def recharger():
     return {"ok": True, "erreurs_cameras": srv().erreurs_cameras}
 
 
+@app.post("/api/cameras/telephone")
+async def ajouter_camera_telephone(demande: DemandeCameraTelephone):
+    """Ajoute une caméra publiée depuis le navigateur d'un téléphone (voir /camera)."""
+    s = srv()
+    cam = cfg.Camera(id=f"tel-{secrets.token_hex(3)}", nom=demande.nom.strip()[:40], type="reseau")
+    erreurs = await mediamtx.synchroniser(s.config.serveur.mediamtx_api, [cam])
+    if erreurs:
+        raise HTTPException(502, erreurs[0])
+    async with s.verrou:
+        s.cameras_telephone.append(cam)
+        s.etat["disposition"]["ordre"].append(cam.id)
+        await s.diffuser()
+    return {"id": cam.id}
+
+
+@app.delete("/api/cameras/telephone/{cam_id}")
+async def retirer_camera_telephone(cam_id: str):
+    s = srv()
+    async with s.verrou:
+        s.cameras_telephone = [c for c in s.cameras_telephone if c.id != cam_id]
+        e = s.etat
+        e["disposition"]["ordre"] = [i for i in e["disposition"]["ordre"] if i != cam_id]
+        e["disposition"]["masquees"] = [i for i in e["disposition"]["masquees"] if i != cam_id]
+        if e["disposition"].get("focus") == cam_id:
+            e["disposition"]["focus"] = None
+        await s.diffuser()
+    await mediamtx.supprimer_chemin(s.config.serveur.mediamtx_api, cam_id)
+    return {"ok": True}
+
+
 @app.post("/api/commande", dependencies=[Depends(verifier_code)])
 async def commande(c: Commande):
     s = srv()
-    ids = [cam.id for cam in s.config.cameras]
+    ids = [cam.id for cam in s.toutes_cameras()]
 
     if c.action == "marquer":
         heure = seance.maintenant() - timedelta(seconds=s.config.lacher.decalage_manuel_s)
@@ -522,7 +561,13 @@ async def commande(c: Commande):
         elif c.action == "focus":
             e["disposition"]["focus"] = c.camera if c.camera in ids else None
         elif c.action == "qr":
-            e["afficher_qr"] = bool(c.valeur)
+            if isinstance(c.valeur, bool):
+                e["afficher_qr"] = c.valeur
+            elif c.valeur in ("telecommande", "camera"):
+                e["qr_type"] = c.valeur
+                e["afficher_qr"] = True
+            else:
+                raise HTTPException(400, "qr : valeur booléenne ou 'telecommande'/'camera'")
         elif c.action == "rejeu":
             f = seance.trouver_fleche(e, c.fleche_id)
             if f is None:

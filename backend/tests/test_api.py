@@ -288,3 +288,89 @@ def test_websocket_diffuse_l_etat(client):
         while (m := ws.receive_json())["type"] != "pong":
             pass
         assert m["heure_serveur"] > 0
+
+
+def test_blason_trispot_et_recalcul(client):
+    trispot = {"diametre_mm": 400, "zone_min": 6, "disposition": "trispot_vertical", "ecart_mm": 220}
+    assert client.post("/api/commande", json={"action": "blason", "blason": trispot}).status_code == 200
+    tirer_volee(client, 3)
+    # Deux flèches dans le spot du haut, une au centre
+    for fid, x, y in [("V01_F1", 0, 222), ("V01_F2", 25, 220), ("V01_F3", 0, 0)]:
+        client.post("/api/impact", json={"fleche_id": fid, "x_mm": x, "y_mm": y})
+    e = client.get("/api/etat").json()
+    assert [(f["impact"]["score"], f["impact"]["double"]) for f in e["fleches"]] == [
+        (0, True), (9, False), (10, False)]
+    assert [f["impact"]["spot"] for f in e["fleches"]] == [0, 0, 1]
+    # Groupement : chaque impact ramené au centre de son spot
+    assert e["groupements"]["volee"]["centre_y_mm"] == 0.7
+
+    # Retour au blason simple de 40 cm : la séance est recalculée, plus de doublon
+    client.post("/api/commande", json={"action": "blason", "blason": {"diametre_mm": 400}})
+    e = client.get("/api/etat").json()
+    assert [f["impact"]["score"] for f in e["fleches"]] == [0, 0, 10]  # 220 mm : hors du 40 cm
+    assert not any(f["impact"]["double"] for f in e["fleches"])
+    assert client.post("/api/commande", json={"action": "blason", "blason": {"zone_min": 12}}).status_code == 422
+
+
+def test_impact_a_confirmer_puis_tranche(client):
+    tirer_volee(client, 1)
+    client.post("/api/commande", json={"action": "blason", "blason": {"diametre_mm": 400}})
+    f = client.post("/api/impact", json={"x_mm": 21.5, "y_mm": 0}).json()
+    assert (f["impact"]["score"], f["impact"]["doute"], f["impact"]["alternative"]) == (10, True, "9")
+    client.post("/api/commande", json={"action": "score", "valeur": 9})
+    imp = client.get("/api/etat").json()["fleches"][0]["impact"]
+    assert (imp["score"], imp["doute"], imp["manuel"]) == (9, False, True)
+
+
+def test_grille_et_reperes(client):
+    def reperes():
+        return client.get("/api/etat").json()["reperes"]
+
+    assert client.post("/api/commande", json={"action": "grille", "valeur": True}).status_code == 200
+    assert client.get("/api/etat").json()["grille"] is True
+    ajout = {"action": "repere_ajouter", "camera": "profil", "points": [0.5, 0.1, 0.5, 0.9]}
+    assert client.post("/api/commande", json=ajout).status_code == 200
+    client.post("/api/commande", json={**ajout, "points": [0.1, 0.4, 0.9, 0.42]})
+    assert reperes() == {"profil": [[0.5, 0.1, 0.5, 0.9], [0.1, 0.4, 0.9, 0.42]]}
+    # Refus : caméra inconnue, point hors de l'image, nombre de points
+    assert client.post("/api/commande", json={**ajout, "camera": "x"}).status_code == 400
+    assert client.post("/api/commande", json={**ajout, "points": [0, 0, 1, 1.2]}).status_code == 400
+    assert client.post("/api/commande", json={**ajout, "points": [0, 0, 1]}).status_code == 422
+    client.post("/api/commande", json={"action": "repere_supprimer", "camera": "profil", "index": 0})
+    assert reperes() == {"profil": [[0.1, 0.4, 0.9, 0.42]]}
+    client.post("/api/commande", json={"action": "repere_supprimer", "camera": "profil"})
+    assert reperes() == {"profil": []}
+    for _ in range(main.REPERES_MAX):
+        client.post("/api/commande", json=ajout)
+    assert client.post("/api/commande", json=ajout).status_code == 409
+
+
+def test_reglages_conserves_au_redemarrage(client, tmp_path):
+    client.post("/api/commande", json={"action": "grille", "valeur": True})
+    client.post("/api/commande", json={"action": "repere_ajouter", "camera": "cible", "points": [0, 0, 1, 1]})
+    client.post("/api/commande", json={"action": "blason", "blason": {"diametre_mm": 600}})
+    etat = main.srv()._charger_etat()
+    assert etat["grille"] is True and etat["reperes"] == {"cible": [[0, 0, 1, 1]]}
+    assert etat["blason"]["diametre_mm"] == 600
+
+
+def test_apercu_camera(client, monkeypatch):
+    from app import apercu
+
+    assert client.get("/api/apercu/inconnue").status_code == 404
+    vus = []
+
+    def fausse_capture(url):
+        vus.append(url)
+        return b"\xff\xd8jpeg"
+
+    monkeypatch.setattr(apercu, "capturer", fausse_capture)
+    r = client.get("/api/apercu/profil")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and r.content == b"\xff\xd8jpeg"
+    assert vus == ["rtsp://mediamtx:8554/profil"]
+
+    def en_panne(url):
+        raise RuntimeError("hors ligne")
+
+    monkeypatch.setattr(apercu, "capturer", en_panne)
+    assert client.get("/api/apercu/profil").status_code == 503

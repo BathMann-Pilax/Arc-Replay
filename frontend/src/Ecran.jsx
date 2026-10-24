@@ -49,7 +49,8 @@ export default function Ecran() {
 
   const vue = (c, etiquette = true) => (
     <VueLive key={c.id} camera={c} delai={etat.delai_s} decalage={decalage}
-      etiquette={etiquette} miroir={(etat.disposition.miroir || []).includes(c.id)} />
+      etiquette={etiquette} miroir={(etat.disposition.miroir || []).includes(c.id)}
+      reperes={etat.reperes?.[c.id] || []} grille={!!etat.grille} />
   );
 
   return (
@@ -81,9 +82,12 @@ export default function Ecran() {
 
       {(impacts.length > 0 || derniere?.impact) && !etat.rejeu && (
         <div className="cible-hud">
-          <MiniCible impacts={impacts} groupement={groupement} taille={140} />
+          <MiniCible impacts={impacts} groupement={groupement} blason={etat.blason} taille={140} />
           {derniere?.impact && (
-            <div className="score score--grand">{libelleScore(derniere.impact)}</div>
+            <div className="score score--grand">
+              {libelleScore(derniere.impact)}
+              {derniere.impact.doute && <span className="score__doute" title="Sur la ligne, à confirmer">?</span>}
+            </div>
           )}
           {groupement && (
             <div className="cible-hud__groupement">Groupement · ⌀ {Math.round(groupement.dispersion_mm * 2)} mm</div>

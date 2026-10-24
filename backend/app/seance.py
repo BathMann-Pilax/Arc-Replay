@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Optional
 
+from . import blason as bl
 from .config import Camera, Config
 
 
@@ -40,6 +41,10 @@ def etat_initial(config: Config, heure: Optional[datetime] = None) -> dict:
             "miroir": [],  # vues retournées gauche-droite
             "focus": None,
         },
+        "blason": config.blason.model_dump(),
+        # Grille et lignes de repère (coordonnées 0–1 dans l'image) par caméra
+        "grille": False,
+        "reperes": {},
         "afficher_qr": True,
         "qr_type": "telecommande",  # ou "camera" : lequel des deux QR codes l'écran affiche
         "fleches": [],
@@ -196,6 +201,7 @@ def impact_manuel(f: dict, score: int, est_x: bool) -> dict:
     impact["score"] = score
     impact["x"] = bool(est_x) and score == 10
     impact["manuel"] = True
+    impact.update(doute=False, alternative=None, double=False)  # tranché par l'archer
     return impact
 
 
@@ -203,8 +209,9 @@ def groupement(impacts: list[dict]) -> Optional[dict]:
     """Centre et dispersion d'un ensemble d'impacts positionnés (au moins 2).
 
     La dispersion est la distance moyenne des impacts au centre, en mm.
+    Sur un trispot, chaque impact est ramené au centre de son spot.
     """
-    points = [(i["x_mm"], i["y_mm"]) for i in impacts
+    points = [(i.get("rel_x_mm", i["x_mm"]), i.get("rel_y_mm", i["y_mm"])) for i in impacts
               if i and i.get("x_mm") is not None and i.get("y_mm") is not None]
     if len(points) < 2:
         return None
@@ -262,7 +269,37 @@ def score_wa(distance_mm: float, diametre_mm: float, rayon_fleche_mm: float = 2.
     return score, est_x
 
 
-CSV_ENTETE = "volee;fleche;heure;score;x;x_mm;y_mm;statut;fichiers\n"
+def blason_de(etat: dict) -> bl.Blason:
+    return bl.Blason.model_validate(etat.get("blason") or {})
+
+
+def calculer_impact(etat: dict, impact: dict) -> None:
+    """(Re)calcule le score d'un impact positionné selon le blason de la séance."""
+    if impact.get("x_mm") is None or impact.get("y_mm") is None or impact.get("manuel"):
+        return
+    r = bl.score_fleche(blason_de(etat), impact["x_mm"], impact["y_mm"],
+                        impact.get("rayon_fleche_mm", 2.5), impact.get("diametre_mm"))
+    impact.update(r, score_auto=r["score"], x_auto=r["x"], double=False)
+
+
+def appliquer_regles_volee(etat: dict, volee: int) -> None:
+    """Règle du trispot (une flèche par spot) sur une volée."""
+    impacts = [f["impact"] for f in etat["fleches"] if f["volee"] == volee and f.get("impact")]
+    bl.appliquer_trispot(blason_de(etat), impacts)
+
+
+def recalculer_scores(etat: dict) -> None:
+    """Changement de blason : nouveaux scores pour tous les impacts détectés de la séance."""
+    diametre = blason_de(etat).diametre_mm
+    for f in etat["fleches"]:
+        if f.get("impact") and f["impact"].get("x_mm") is not None and not f["impact"].get("manuel"):
+            f["impact"]["diametre_mm"] = diametre
+            calculer_impact(etat, f["impact"])
+    for v in {f["volee"] for f in etat["fleches"]}:
+        appliquer_regles_volee(etat, v)
+
+
+CSV_ENTETE = "volee;fleche;heure;score;x;x_mm;y_mm;statut;fichiers;spot;a_confirmer\n"
 CSV_GROUPEMENTS_ENTETE = "volee;impacts;centre_x_mm;centre_y_mm;dispersion_mm\n"
 
 
@@ -280,6 +317,8 @@ def ligne_csv(f: dict) -> str:
             "" if imp.get("y_mm") is None else f"{imp['y_mm']:.1f}",
             f["statut"],
             f["dossier"],
+            "" if imp.get("spot") is None else str(imp["spot"] + 1),
+            f"{imp['alternative']} ?" if imp.get("doute") else "",
         ]
     ) + "\n"
 

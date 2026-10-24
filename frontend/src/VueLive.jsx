@@ -1,5 +1,6 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
+import Reperes from "./Reperes";
 
 /**
  * Une caméra en différé.
@@ -10,11 +11,15 @@ import { useEffect, useRef, useState } from "react";
  * même heure, elles restent donc synchronisées entre elles.
  * Sans date dans le flux, on se rabat sur « bord du direct − délai ».
  */
-export default function VueLive({ camera, delai, decalage, etiquette = true, miroir = false }) {
+export default function VueLive({
+  camera, delai, decalage, etiquette = true, miroir = false, reperes = [], grille = false,
+}) {
   const videoRef = useRef(null);
   const reglages = useRef({ delai, decalage });
   reglages.current = { delai, decalage };
   const [statut, setStatut] = useState("connexion");
+  const [taille, setTaille] = useState(null); // taille réelle de l'image, pour les repères
+  const lireTaille = (e) => setTaille([e.currentTarget.videoWidth, e.currentTarget.videoHeight]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -96,7 +101,10 @@ export default function VueLive({ camera, delai, decalage, etiquette = true, mir
         muted
         playsInline
         autoPlay
+        onLoadedMetadata={lireTaille}
+        onResize={lireTaille}
       />
+      {taille && <Reperes largeur={taille[0]} hauteur={taille[1]} lignes={reperes} grille={grille} miroir={miroir} />}
       {etiquette && (
         <div className="vue__etiquette">
           {camera.nom}

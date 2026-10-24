@@ -31,7 +31,8 @@ flowchart LR
 - **Une flèche = un dossier de clips** : détection du lâcher au micro, ou bouton « marquer ».
 - **Rejeu** des flèches de la volée, toutes vues ensemble, en vitesse réelle, ×0,5 ou ×0,25.
 - **Comparaison** de deux flèches côte à côte ou superposées, alignées sur le lâcher.
-- **Score** détecté par la caméra cible ou saisi sur la télécommande, avec le groupement (centre et dispersion) de la volée et de la séance.
+- **Score** détecté par la caméra cible ou saisi sur la télécommande, avec le groupement (centre et dispersion) de la volée et de la séance. Blasons complets, réduits et trispots, 10 réduit pour l'arc à poulies, impacts sur une ligne signalés « à confirmer ».
+- **Grille et lignes de repère** tracées depuis la télécommande (verticale du corps, épaules, ancrage), avec leur angle, en direct comme en rejeu.
 - **Annulation** d'un faux lâcher (tir du voisin capté par le micro).
 - **Écran et télécommande séparés** : la TV affiche, le téléphone pilote (QR code à l'écran pour se connecter).
 - **Sauvegarde sur la clé de l'archer**, volée par volée : un dossier par flèche, un fichier par caméra, récapitulatifs CSV. Sans clé, rien n'est conservé ; le serveur est vidé en fin de séance et au démarrage.

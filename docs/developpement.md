@@ -72,7 +72,8 @@ La CI GitHub Actions lance ces mêmes tests, puis construit et publie les images
 | `GET` | `/api/etat` | État complet. |
 | `WS` | `/api/ws` | État poussé à chaque changement ; envoyer `ping` pour recevoir l'heure du serveur. |
 | `POST` | `/api/lacher` | `{heure?, source?}` : nouvelle flèche. |
-| `POST` | `/api/impact` | `{fleche_id?, x_mm, y_mm, diametre_mm, score?, image_jpeg_b64?}` : impact (repère : centre du blason, y vers le haut). |
+| `POST` | `/api/impact` | `{fleche_id?, x_mm, y_mm, diametre_mm?, rayon_fleche_mm?, score?, image_jpeg_b64?}` : impact (repère : centre du blason, ou du spot du milieu d'un trispot, y vers le haut). Sans `diametre_mm`, celui du blason de la séance. Réponse : score, `spot`, `doute` et `alternative` (impact sur une ligne), `double` (seconde flèche dans un spot de trispot). |
+| `GET` | `/api/apercu/{camera}` | Image JPEG actuelle de la caméra (960 px de large au plus), pour placer les repères. 503 si la caméra n'envoie rien. |
 | `POST` | `/api/commande` | `{action, …}` : voir ci-dessous. Exige l'en-tête `X-Arc-Code` si `code_telecommande` est réglé. |
 | `POST` | `/api/recharger` | Relit `arc-replay.yml` et reconfigure MediaMTX. Même code que `/api/commande`. |
 | `GET` | `/api/sante` | Contrôle de vie. |
@@ -83,7 +84,11 @@ Actions de `/api/commande` :
 |---|---|
 | `delai` | `valeur` (secondes) |
 | `lateralite` | `valeur` : `droitier` ou `gaucher` |
-| `disposition` | `ordre` (tous les id), `masquees` |
+| `disposition` | `ordre` (tous les id), `masquees`, `miroir` |
+| `blason` | `blason` : `{diametre_mm, zone_min, disposition, ecart_mm, poulies}` ; recalcule les scores détectés |
+| `grille` | `valeur` : booléen |
+| `repere_ajouter` | `camera`, `points` : `[x1, y1, x2, y2]` entre 0 et 1 dans l'image (8 lignes au plus par caméra) |
+| `repere_supprimer` | `camera`, `index` (absent : toutes les lignes de la caméra) |
 | `focus` | `camera` (ou absent pour revenir à la mosaïque) |
 | `qr` | `valeur` : booléen |
 | `rejeu` | `fleche_id` (`derniere` par défaut), `vitesse` |

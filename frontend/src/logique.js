@@ -33,9 +33,48 @@ export const impactsPositionnes = (impacts) =>
  * Position sur le mini-blason (repère SVG 0..100, centre en 50,50).
  * Le y du blason va vers le haut, celui du SVG vers le bas.
  */
-export function positionSurCible(x_mm, y_mm, diametre_mm) {
-  const echelle = 50 / (diametre_mm / 2);
+export function positionSurCible(x_mm, y_mm, diametre_mm, zoneMin = 1) {
+  const echelle = 50 / rayonImprime(diametre_mm, zoneMin);
   return { x: 50 + x_mm * echelle, y: 50 - y_mm * echelle, echelle };
+}
+
+/** Rayon imprimé d'un spot : un blason réduit ou un trispot s'arrête avant la zone 1. */
+export const rayonImprime = (diametre_mm, zoneMin = 1) => ((11 - zoneMin) * diametre_mm) / 20;
+
+/** Blasons proposés dans la télécommande (mêmes dimensions que dans ArcAssist). */
+export const BLASONS = [
+  { nom: "122 cm", blason: { diametre_mm: 1220, zone_min: 1, disposition: "simple" } },
+  { nom: "80 cm", blason: { diametre_mm: 800, zone_min: 1, disposition: "simple" } },
+  { nom: "80 cm réduit (5 à 10)", blason: { diametre_mm: 800, zone_min: 5, disposition: "simple" } },
+  { nom: "60 cm", blason: { diametre_mm: 600, zone_min: 1, disposition: "simple" } },
+  { nom: "40 cm", blason: { diametre_mm: 400, zone_min: 1, disposition: "simple" } },
+  { nom: "Trispot 40 vertical", blason: { diametre_mm: 400, zone_min: 6, disposition: "trispot_vertical", ecart_mm: 220 } },
+  { nom: "Trispot 40 triangulaire", blason: { diametre_mm: 400, zone_min: 6, disposition: "trispot_triangle", ecart_mm: 220 } },
+];
+
+/** Index du blason prédéfini qui correspond à celui de la séance, -1 sinon. */
+export function indexBlason(b) {
+  if (!b) return -1;
+  return BLASONS.findIndex(({ blason: p }) => p.diametre_mm === b.diametre_mm
+    && p.zone_min === b.zone_min && p.disposition === b.disposition
+    && (p.disposition === "simple" || p.ecart_mm === b.ecart_mm));
+}
+
+/** Score saisi pour un libellé « X », « 10 »… « M » : paramètres de la commande `score`. */
+export function valeurScore(libelle) {
+  if (libelle === "X") return { valeur: 10, x: true };
+  if (libelle === "M") return { valeur: 0, x: false };
+  return { valeur: Number(libelle), x: false };
+}
+
+/**
+ * Angle d'une ligne de repère par rapport à l'horizontale, de 0 à 90°.
+ * Les points sont en 0–1 : il faut la taille de l'image pour un angle juste.
+ */
+export function angleRepere([x1, y1, x2, y2], largeur, hauteur) {
+  const dx = Math.abs(x2 - x1) * largeur;
+  const dy = Math.abs(y2 - y1) * hauteur;
+  return Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
 }
 
 /** Flèches qu'on peut rejouer : leurs clips sont encore sur le serveur. */

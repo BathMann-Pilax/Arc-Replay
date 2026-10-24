@@ -23,6 +23,14 @@ lacher:
   anti_rebond_s: 2          # ignore un second lâcher détecté trop tôt
   decalage_manuel_s: 1.0    # bouton « marquer » : le tir a eu lieu ~1 s avant l'appui
 
+# Blason par défaut (se change aussi depuis la télécommande, section Score)
+blason:
+  diametre_mm: 1220         # blason complet de référence : 400 pour un 40 cm comme pour un trispot 40
+  zone_min: 1               # zone la plus basse imprimée : 1 complet, 5 pour le 80 cm réduit, 6 trispot
+  disposition: simple       # simple | trispot_vertical | trispot_triangle
+  # ecart_mm: 220           # trispot : distance entre les centres des spots
+  poulies: false            # arc à poulies : 10 réduit
+
 # Liste des caméras. L'ordre ici est l'ordre par défaut dans la mosaïque.
 # Types :
 #   usb    : caméra branchée sur le serveur (lue et encodée par MediaMTX via ffmpeg)

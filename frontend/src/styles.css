@@ -49,6 +49,15 @@ button { font: inherit; color: inherit; }
 }
 .vue--attente video { opacity: 0.3; }
 .video--miroir { transform: scaleX(-1); } /* vue retournée depuis la télécommande */
+.score__doute { color: #ff8a00; margin-left: 2px; } /* impact sur une ligne, à confirmer */
+
+/* Éditeur des lignes de repère (télécommande) : image fixe de la caméra */
+.editeur-reperes > * + * { margin-top: 8px; }
+.apercu { position: relative; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; }
+.apercu img { display: block; width: 100%; height: auto; }
+
+/* Grille et repères par-dessus la vidéo (même cadrage que object-fit: contain) */
+.reperes { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
 .pastille {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
@@ -71,7 +80,7 @@ button { font: inherit; color: inherit; }
   background: rgba(0, 0, 0, 0.55);
 }
 .score {
-  display: inline-grid; place-items: center; min-width: 2em; padding: 0 6px; height: 2em;
+  display: inline-grid; grid-auto-flow: column; place-items: center; min-width: 2em; padding: 0 6px; height: 2em;
   border-radius: 6px; background: var(--or); color: #1a1500; font-weight: 700;
 }
 .score--grand { font-size: 1.8rem; min-width: 2.2em; }

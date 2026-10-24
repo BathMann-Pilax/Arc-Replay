@@ -12,7 +12,6 @@ import base64
 import binascii
 import json
 import logging
-import math
 import os
 import secrets
 import shutil
@@ -23,11 +22,12 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
-from . import clips, config as cfg, mediamtx, seance, usb
+from . import apercu, clips, config as cfg, mediamtx, seance, usb
+from .blason import Blason
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("arc")
@@ -78,7 +78,8 @@ class Serveur:
         if fichier.exists():
             try:
                 ancien = json.loads(fichier.read_text(encoding="utf-8"))
-                for cle in ("delai_s", "lateralite", "disposition", "afficher_qr", "qr_type"):
+                for cle in ("delai_s", "lateralite", "disposition", "afficher_qr", "qr_type",
+                            "blason", "grille", "reperes"):
                     if cle in ancien:
                         etat[cle] = ancien[cle]
             except (OSError, ValueError, TypeError):
@@ -238,18 +239,18 @@ class Serveur:
             f = seance.fleche_pour_impact(self.etat, demande.fleche_id)
             if f is None:
                 raise HTTPException(404, "aucune flèche à associer à cet impact")
-            distance = math.hypot(demande.x_mm, demande.y_mm)
-            score, est_x = seance.score_wa(distance, demande.diametre_mm, demande.rayon_fleche_mm)
-            if demande.score is not None:  # score imposé (saisie manuelle)
-                score, est_x = demande.score, bool(demande.x)
             impact = {
                 "x_mm": demande.x_mm,
                 "y_mm": demande.y_mm,
-                "diametre_mm": demande.diametre_mm,
-                "score": score,
-                "x": est_x,
+                # Diamètre envoyé par le nœud cible, sinon celui du blason choisi
+                "diametre_mm": demande.diametre_mm or seance.blason_de(self.etat).diametre_mm,
+                "rayon_fleche_mm": demande.rayon_fleche_mm,
                 "image": None,
             }
+            seance.calculer_impact(self.etat, impact)
+            if demande.score is not None:  # score imposé (saisie manuelle)
+                impact.update(score=demande.score, x=bool(demande.x) and demande.score == 10,
+                              doute=False, alternative=None, manuel=True)
             if demande.image_jpeg_b64 and not f.get("archivee"):
                 try:
                     donnees = base64.b64decode(demande.image_jpeg_b64, validate=True)
@@ -261,6 +262,7 @@ class Serveur:
                 chemin.write_bytes(donnees)
                 impact["image"] = relatif
             f["impact"] = impact
+            seance.appliquer_regles_volee(self.etat, f["volee"])
             self.ecrire_fiche_fleche(f)
             self.ecrire_fichiers_seance()
             await self.diffuser()
@@ -389,7 +391,7 @@ class DemandeImpact(BaseModel):
     fleche_id: Optional[str] = None
     x_mm: float = Field(ge=-2000, le=2000)  # repère : centre du blason, x vers la droite
     y_mm: float = Field(ge=-2000, le=2000)  # y vers le haut
-    diametre_mm: float = Field(1220, gt=0, le=1300)
+    diametre_mm: Optional[float] = Field(None, gt=0, le=1300)  # absent : blason de la séance
     rayon_fleche_mm: float = Field(2.5, ge=0, le=10)
     score: Optional[int] = Field(None, ge=0, le=10)
     x: Optional[bool] = None
@@ -400,17 +402,25 @@ class DemandeCameraTelephone(BaseModel):
     nom: str = Field(min_length=1, max_length=40)
 
 
+REPERES_MAX = 8  # lignes de repère par caméra
+
+
 class Commande(BaseModel):
     action: Literal[
         "delai", "lateralite", "disposition", "focus", "qr",
         "rejeu", "rejeu_controle", "rejeu_fermer",
         "nouvelle_volee", "nouvelle_seance", "marquer", "annuler_fleche", "score",
         "comparer", "sauvegarder_usb",
+        "blason", "grille", "repere_ajouter", "repere_supprimer",
     ]
     valeur: Optional[float | str | bool] = None
     ordre: Optional[list[str]] = None
     masquees: Optional[list[str]] = None
     miroir: Optional[list[str]] = None  # disposition : vues retournées en miroir
+    blason: Optional[Blason] = None
+    # Ligne de repère : x1, y1, x2, y2 entre 0 et 1 dans l'image de la caméra
+    points: Optional[list[float]] = Field(None, min_length=4, max_length=4)
+    index: Optional[int] = None  # repère à supprimer (absent : tous ceux de la caméra)
     camera: Optional[str] = None
     fleche_id: Optional[str] = None
     fleche_id_b: Optional[str] = None  # comparaison : seconde flèche
@@ -468,6 +478,21 @@ async def sante():
 @app.get("/api/etat")
 async def lire_etat():
     return srv().vue()
+
+
+@app.get("/api/apercu/{camera_id}")
+async def apercu_camera(camera_id: str):
+    """Image actuelle d'une caméra (JPEG), pour placer les repères depuis la télécommande."""
+    s = srv()
+    if camera_id not in [c.id for c in s.toutes_cameras()]:
+        raise HTTPException(404, "caméra inconnue")
+    try:
+        image = await asyncio.to_thread(
+            apercu.capturer, apercu.url_rtsp(s.config.serveur.mediamtx_api, camera_id))
+    except Exception as e:  # caméra hors ligne, PyAV absent, flux illisible…
+        log.warning("aperçu de %s impossible : %s", camera_id, e)
+        raise HTTPException(503, "pas d'image : la caméra est-elle en ligne ?")
+    return Response(image, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/lacher")
@@ -564,6 +589,36 @@ async def commande(c: Commande):
                 e["disposition"]["miroir"] = [i for i in c.miroir if i in ids]
         elif c.action == "focus":
             e["disposition"]["focus"] = c.camera if c.camera in ids else None
+        elif c.action == "blason":
+            if c.blason is None:
+                raise HTTPException(400, "blason manquant")
+            e["blason"] = c.blason.model_dump()
+            seance.recalculer_scores(e)
+            for f in e["fleches"]:
+                if f.get("impact") and not f.get("archivee"):
+                    s.ecrire_fiche_fleche(f)
+            s.ecrire_fichiers_seance()
+        elif c.action == "grille":
+            if not isinstance(c.valeur, bool):
+                raise HTTPException(400, "grille : true ou false")
+            e["grille"] = c.valeur
+        elif c.action == "repere_ajouter":
+            if c.camera not in ids or c.points is None:
+                raise HTTPException(400, "caméra et points (x1, y1, x2, y2) requis")
+            if not all(0 <= p <= 1 for p in c.points):
+                raise HTTPException(400, "points entre 0 et 1")
+            liste = e.setdefault("reperes", {}).setdefault(c.camera, [])
+            if len(liste) >= REPERES_MAX:
+                raise HTTPException(409, f"{REPERES_MAX} repères au plus par caméra")
+            liste.append([round(p, 4) for p in c.points])
+        elif c.action == "repere_supprimer":
+            liste = e.setdefault("reperes", {}).get(c.camera, [])
+            if c.index is None:
+                liste.clear()
+            elif 0 <= c.index < len(liste):
+                liste.pop(c.index)
+            else:
+                raise HTTPException(404, "repère introuvable")
         elif c.action == "qr":
             if isinstance(c.valeur, bool):
                 e["afficher_qr"] = c.valeur
@@ -642,6 +697,7 @@ async def commande(c: Commande):
             if not 0 <= valeur <= 10:
                 raise HTTPException(400, "score entre 0 et 10")
             f["impact"] = seance.impact_manuel(f, valeur, bool(c.x))
+            seance.appliquer_regles_volee(e, f["volee"])
             s.ecrire_fiche_fleche(f)
             s.ecrire_fichiers_seance()
         await s.diffuser()

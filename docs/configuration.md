@@ -40,6 +40,22 @@ Un clip est donc disponible environ `apres_s + marge_s` secondes après le tir.
 | `anti_rebond_s` | `2` | Un second lâcher signalé moins de 2 s après le précédent est ignoré. |
 | `decalage_manuel_s` | `1.0` | Avec le bouton « Marquer un tir », le tir est daté 1 s avant l'appui. |
 
+## `blason`
+
+Blason utilisé pour calculer le score des impacts détectés. C'est la valeur au premier démarrage : ensuite, le blason choisi dans la télécommande (section Score) est gardé d'une séance à l'autre. Changer de blason recalcule les scores détectés de la séance.
+
+| Clé | Défaut | Rôle |
+|---|---|---|
+| `diametre_mm` | `1220` | Diamètre du blason complet de référence : `400` pour un 40 cm comme pour un trispot 40. |
+| `zone_min` | `1` | Zone la plus basse imprimée : `1` blason complet, `5` pour le 80 cm réduit, `6` pour un trispot. Au-delà, la flèche vaut M. |
+| `disposition` | `simple` | `simple`, `trispot_vertical` (trois spots l'un au-dessus de l'autre) ou `trispot_triangle`. |
+| `ecart_mm` | `220` | Trispot : distance entre les centres des spots. |
+| `poulies` | `false` | Arc à poulies : 10 réduit (le 10 se limite au cercle intérieur, le reste du 10 vaut 9). |
+
+Règles appliquées (World Archery) : une flèche qui touche une ligne compte la zone supérieure, la distance étant mesurée depuis le bord du tube. Sur un trispot, une seule flèche compte par spot : si deux flèches sont dans le même spot, la plus haute vaut M. Un impact détecté à moins de 1,5 mm d'une ligne est marqué **à confirmer** : la télécommande propose les deux valeurs.
+
+Sur un trispot, le nœud cible envoie la position de l'impact depuis le centre du spot du milieu ; le serveur retrouve le spot touché.
+
 ## `cameras`
 
 L'ordre de la liste est l'ordre par défaut de la mosaïque ; il se change ensuite depuis la télécommande.

@@ -36,7 +36,11 @@ Sans serveur du tout, avec la caméra de la tablette ou du PC : voir le [mode so
 
 ### Score
 
-Pour noter une flèche quand la cible n'est pas filmée : toucher la flèche dans la liste (sinon c'est la dernière), puis **X, 10 … 1** ou **M** (manquée). Un score saisi remplace le score détecté ; la position mesurée, s'il y en a une, est gardée.
+- **Blason** : 122, 80, 80 réduit (5 à 10), 60, 40 cm, trispot 40 vertical ou triangulaire. Case **Arc à poulies** pour le 10 réduit. Changer de blason recalcule les scores détectés de la séance ; le choix est gardé pour les séances suivantes.
+- **Trispot** : une seule flèche compte par spot. Une seconde flèche dans le même spot vaut M (la plus haute des deux), en gris sur le mini-blason. Le mini-blason superpose les trois spots, comme le calcul du groupement.
+- **À confirmer** : un impact détecté sur une ligne (à moins de 1,5 mm) porte un **?** orange, sur l'écran et dans la liste des flèches. En touchant la flèche, la télécommande propose les deux valeurs possibles.
+
+Pour noter une flèche quand la cible n'est pas filmée : toucher la flèche dans la liste (sinon c'est la dernière), puis **X, 10 … 1** ou **M** (manquée). Un score saisi remplace le score détecté ; la position mesurée, s'il y en a une, est gardée. Un score saisi n'est jamais modifié ensuite, ni par la règle du trispot ni par un changement de blason.
 
 Dès deux impacts localisés par le nœud cible, le mini-blason de l'écran montre le **groupement** de la volée : une croix au centre et un cercle de dispersion. La télécommande indique son diamètre, pour la volée et pour la séance. Le fichier `groupements.csv` reprend le centre et la dispersion de chaque volée.
 
@@ -52,6 +56,8 @@ Dès deux impacts localisés par le nœud cible, le mini-blason de l'écran mont
 - **Retard** : de 3 à 30 s. Changement immédiat sur l'écran.
 - **Droitier / Gaucher** : indique la latéralité de l'archer, enregistrée avec chaque flèche. Les images ne sont pas retournées automatiquement : le changement de côté est physique (écran sur support roulant, caméra de profil), voir [Changer de côté](#changer-de-côté-droitier--gaucher).
 - **Caméras** : ↑ ↓ pour l'ordre, ⤢ pour agrandir une vue (les autres passent en bande latérale), ● / ○ pour masquer ou afficher, ⇆ pour retourner l'image en miroir (direct, rejeu et comparaison ; bouton bleu quand le miroir est actif).
+- **Grille** : quadrillage (6 × 4) par-dessus toutes les vues, en direct et en rejeu.
+- **Lignes de repère** : choisir une caméra, la télécommande affiche une image fixe de cette caméra ; toucher deux points trace une ligne (verticale du corps, ligne des épaules, niveau de l'ancrage…). Elle s'affiche sur l'écran avec son angle par rapport à l'horizontale, en direct, en rejeu et en comparaison, et reste en place si l'on active le miroir. Jusqu'à 8 lignes par caméra, effaçables une par une ; « Nouvelle image » rafraîchit la photo. Grille et lignes sont gardées d'une séance à l'autre : si une caméra bouge, retracez ses lignes.
 - **Tablette** : dès 760 px de large (iPad, portrait compris), la télécommande s'affiche sur deux colonnes, le tir à gauche, les réglages à droite. Elle fonctionne aussi sur les anciens iPad (iPad 2, iOS 9).
 
 ### Clé USB : où vont les vidéos

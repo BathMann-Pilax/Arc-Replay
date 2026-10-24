@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adresseTelecommande, camerasCommunes, camerasVisibles, codeDepuisAdresse, colonnesPour,
   impactsPositionnes, libelleScore, positionSurCible, rejouable, urlFichier,
+  angleRepere, BLASONS, indexBlason, valeurScore,
 } from "./logique";
 
 const etat = {
@@ -43,6 +44,30 @@ describe("scores et blason", () => {
   it("convertit les millimètres en position SVG, y vers le haut", () => {
     expect(positionSurCible(0, 0, 400)).toMatchObject({ x: 50, y: 50 });
     expect(positionSurCible(200, 200, 400)).toMatchObject({ x: 100, y: 0 });
+  });
+  it("agrandit un blason réduit : le spot imprimé remplit le mini-blason", () => {
+    // Trispot 40 : imprimé jusqu'au 6, soit 100 mm de rayon
+    expect(positionSurCible(100, 0, 400, 6)).toMatchObject({ x: 100, y: 50 });
+  });
+  it("retrouve le blason prédéfini de la séance", () => {
+    expect(indexBlason({ diametre_mm: 1220, zone_min: 1, disposition: "simple", ecart_mm: 220 })).toBe(0);
+    const trispot = BLASONS.findIndex((b) => b.nom === "Trispot 40 vertical");
+    expect(indexBlason({ ...BLASONS[trispot].blason, poulies: true })).toBe(trispot);
+    expect(indexBlason({ diametre_mm: 900, zone_min: 1, disposition: "simple" })).toBe(-1);
+  });
+  it("traduit un libellé en score saisi", () => {
+    expect(valeurScore("X")).toEqual({ valeur: 10, x: true });
+    expect(valeurScore("9")).toEqual({ valeur: 9, x: false });
+    expect(valeurScore("M")).toEqual({ valeur: 0, x: false });
+  });
+});
+
+describe("repères", () => {
+  it("mesure l'angle avec l'horizontale dans l'image réelle", () => {
+    expect(angleRepere([0.5, 0.1, 0.5, 0.9], 1280, 720)).toBe(90);
+    expect(angleRepere([0.1, 0.5, 0.9, 0.5], 1280, 720)).toBe(0);
+    // Diagonale de l'image 16/9 : 29°, pas 45°
+    expect(angleRepere([0, 0, 1, 1], 1280, 720)).toBe(29);
   });
 });
 

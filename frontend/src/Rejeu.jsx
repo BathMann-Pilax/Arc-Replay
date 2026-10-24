@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { camerasVisibles, urlFichier } from "./api";
 import { colonnesPour, libelleScore } from "./logique";
+import Reperes from "./Reperes";
 
 /**
  * Rejeu synchronisé, piloté par la télécommande via etat.rejeu (lecture, vitesse, redémarrage).
@@ -15,6 +16,7 @@ export default function Rejeu({ etat }) {
   const fleche = etat.fleches.find((f) => f.id === rejeu.fleche_id);
   const flecheB = rejeu.fleche_id_b ? etat.fleches.find((f) => f.id === rejeu.fleche_id_b) : null;
   const videos = useRef({});
+  const [tailles, setTailles] = useState({}); // taille réelle de chaque clip, pour les repères
 
   // Liste des vidéos à jouer : [clé, flèche, caméra]
   let pistes;
@@ -68,6 +70,10 @@ export default function Rejeu({ etat }) {
       ref={(el) => (videos.current[cle] = el)}
       src={urlFichier(f.clips[cam.id])}
       className={(etat.disposition.miroir || []).includes(cam.id) ? "video--miroir" : undefined}
+      onLoadedMetadata={(e) => {
+        const { videoWidth: l, videoHeight: h } = e.currentTarget;
+        setTailles((t) => ({ ...t, [cle]: [l, h] }));
+      }}
       muted
       playsInline
       loop
@@ -75,6 +81,12 @@ export default function Rejeu({ etat }) {
       style={style}
     />
   );
+  // Grille et repères de la caméra, alignés sur l'image du clip
+  const reperes = ([cle, , cam]) => {
+    const t = tailles[cle];
+    return t && <Reperes largeur={t[0]} hauteur={t[1]} lignes={etat.reperes?.[cam.id] || []}
+      grille={!!etat.grille} miroir={(etat.disposition.miroir || []).includes(cam.id)} />;
+  };
   const nomFleche = (f) => `V${f.volee} F${f.numero}${f.impact ? ` · ${libelleScore(f.impact)}` : ""}`;
 
   let contenu;
@@ -84,6 +96,7 @@ export default function Rejeu({ etat }) {
         <div className="vue vue--superposee">
           {video(pistes[0])}
           {video(pistes[1], { opacity: 0.5 })}
+          {reperes(pistes[0])}
           <div className="vue__etiquette">
             {pistes[0][2].nom} · <span className="legende legende--a">{nomFleche(fleche)}</span>
             {" + "}<span className="legende legende--b">{nomFleche(flecheB)}</span> (transparente)
@@ -98,6 +111,7 @@ export default function Rejeu({ etat }) {
         {pistes.map((p) => (
           <div className="vue" key={p[0]}>
             {video(p)}
+            {reperes(p)}
             <div className="vue__etiquette">{flecheB ? `${p[2].nom} · ${nomFleche(p[1])}` : p[2].nom}</div>
           </div>
         ))}

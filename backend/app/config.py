@@ -10,6 +10,8 @@ from typing import Literal, Optional
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .blason import Blason
+
 ID_CAMERA = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 DEBIT = re.compile(r"^\d+(\.\d+)?[kKmM]?$")
 DELAI_MIN_S = 3
@@ -105,6 +107,7 @@ class Config(BaseModel):
     volees: Volees = Volees()
     clips: Clips = Clips()
     lacher: Lacher = Lacher()
+    blason: Blason = Blason()  # blason par défaut, modifiable depuis la télécommande
     cameras: list[Camera] = []
 
     @model_validator(mode="after")

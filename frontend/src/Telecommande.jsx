@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { commande, memoriserCode, recharger, useEtat } from "./api";
-import { camerasCommunes, libelleScore, rejouable } from "./logique";
+import { BLASONS, camerasCommunes, indexBlason, libelleScore, rejouable, valeurScore } from "./logique";
+import EditeurReperes from "./EditeurReperes";
 
 const VITESSES = [1, 0.5, 0.25];
 const SCORES = [["X", 10, true], ["10", 10], ["9", 9], ["8", 8], ["7", 7], ["6", 6],
@@ -65,6 +66,7 @@ export default function Telecommande({ integree = false }) {
   const [delaiLocal, setDelaiLocal] = useState(null); // valeur pendant le glissement
   const [selection, setSelection] = useState(null); // flèche choisie pour le score
   const [comparaison, setComparaison] = useState(null); // null, ou [] puis [id A] en cours de choix
+  const [editeurReperes, setEditeurReperes] = useState(false);
 
   const agir = async (action, params) => {
     setErreur(null);
@@ -267,7 +269,10 @@ export default function Telecommande({ integree = false }) {
                     onClick={() => toucherFleche(f)}
                   >
                     <span className="fleche__num">F{f.numero}</span>
-                    <span className="fleche__score">{libelleScore(f.impact)}</span>
+                    <span className="fleche__score">
+                      {libelleScore(f.impact)}
+                      {f.impact?.doute && <span className="score__doute" title="Sur la ligne, à confirmer">?</span>}
+                    </span>
                     {statutFleche(f) && <span className="fleche__statut">{statutFleche(f)}</span>}
                   </button>
                 ))}
@@ -283,12 +288,42 @@ export default function Telecommande({ integree = false }) {
       </Section>
 
       <Section titre="Score">
+        <div className="rangee">
+          <select className="champ" aria-label="Blason" value={indexBlason(etat.blason)}
+            onChange={(e) => {
+              const choisi = BLASONS[Number(e.target.value)];
+              if (choisi) agir("blason", { blason: { ...choisi.blason, poulies: !!etat.blason?.poulies } });
+            }}>
+            {indexBlason(etat.blason) === -1 && <option value={-1}>Blason de la configuration</option>}
+            {BLASONS.map((b, i) => <option key={b.nom} value={i}>{b.nom}</option>)}
+          </select>
+        </div>
+        <label className="interrupteur">
+          <input type="checkbox" checked={!!etat.blason?.poulies}
+            onChange={(e) => agir("blason", { blason: { ...etat.blason, poulies: e.target.checked } })} />
+          Arc à poulies (10 réduit)
+        </label>
+
         {aNoter ? (
           <>
             <p className="info">
               Flèche {aNoter.id.replace("_", " ")} : <strong>{libelleScore(aNoter.impact)}</strong>
               {aNoter.impact?.manuel ? " (saisi)" : aNoter.impact ? " (détecté)" : ""}
+              {aNoter.impact?.double && " : seconde flèche dans ce spot, comptée M (règle du trispot)"}
             </p>
+            {aNoter.impact?.doute && (
+              <div className="alerte alerte--douce">
+                <p className="info">Sur la ligne : {libelleScore(aNoter.impact)} ou {aNoter.impact.alternative} ?</p>
+                <div className="rangee">
+                  {[libelleScore(aNoter.impact), aNoter.impact.alternative].map((l) => (
+                    <button key={l} className={`bouton bouton--petit score-${l}`}
+                      onClick={() => agir("score", { fleche_id: aNoter.id, ...valeurScore(l) })}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="clavier-score">
               {SCORES.map(([libelle, valeur, x]) => (
                 <button key={libelle} className={`bouton bouton--petit score-${libelle}`}
@@ -407,6 +442,18 @@ export default function Telecommande({ integree = false }) {
             );
           })}
         </ul>
+
+        <div className="rangee">
+          <button className={`bouton ${etat.grille ? "bouton--actif" : ""}`}
+            onClick={() => agir("grille", { valeur: !etat.grille })}>
+            Grille
+          </button>
+          <button className={`bouton ${editeurReperes ? "bouton--actif" : ""}`}
+            onClick={() => setEditeurReperes(!editeurReperes)}>
+            Lignes de repère
+          </button>
+        </div>
+        {editeurReperes && <EditeurReperes etat={etat} agir={agir} />}
 
         <label className="interrupteur">
           <input type="checkbox" checked={etat.afficher_qr}

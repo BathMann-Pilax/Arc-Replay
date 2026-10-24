@@ -8,19 +8,23 @@ flowchart TB
     USB[Caméras USB<br>/dev/v4l/...]
     NOEUD[Nœuds Pi<br>caméra / cible]
     IP[Caméras IP<br>RTSP]
-    MIC[Micro]
+    TEL[Téléphone<br>navigateur, page /camera]
+    MIC[Micro serveur ou téléphone]
   end
 
   subgraph Serveur Docker
-    MTX[MediaMTX<br>RTSP · HLS · enregistrement · relecture]
+    MTX[MediaMTX<br>RTSP · WHIP · HLS · enregistrement · relecture]
     API[Back-end FastAPI<br>état · flèches · clips · USB]
-    WEB[nginx<br>interface + proxy]
+    WEB[nginx<br>interface https + proxy]
     DET[détecteur-lacher]
   end
 
   USB -- ffmpeg --> MTX
   NOEUD -- RTSP push --> MTX
   IP -- RTSP pull --> MTX
+  TEL -- WHIP (WebRTC) --> WEB -- /webrtc --> MTX
+  TEL -- POST /api/cameras/telephone --> API
+  TEL -- POST /api/lacher (micro local) --> API
   MIC --> DET -- POST /api/lacher --> API
   API -- API de contrôle :9997 --> MTX
   API -- relecture :9996 --> MTX
@@ -28,14 +32,14 @@ flowchart TB
   WEB -- /api, /api/ws --> API
   NOEUD -- POST /api/impact --> WEB
   WEB --> ECRAN[Écran /]
-  WEB --> TELE[Télécommande /telecommande]
+  WEB --> TELE2[Télécommande /telecommande]
 ```
 
 | Composant | Rôle |
 |---|---|
-| **MediaMTX** | Reçoit tous les flux, les sert en HLS (avec 40 s d'historique), les enregistre en continu et découpe des extraits à la demande. Aucun transcodage. |
-| **Back-end** (Python, FastAPI) | Garde l'état partagé (disposition, retard, flèches, rejeu), le diffuse par WebSocket, crée les chemins MediaMTX, extrait les clips, gère le stockage (volée en cours sur le serveur, volées terminées sur la clé USB). |
-| **Interface** (React, nginx) | Deux pages : l'écran (affichage seul) et la télécommande. nginx sert aussi les clips et relaie HLS et API. |
+| **MediaMTX** | Reçoit tous les flux, les sert en HLS (avec 40 s d'historique), les enregistre en continu et découpe des extraits à la demande. Aucun transcodage. Accepte aussi une publication directe depuis un navigateur en WebRTC/WHIP (page `/camera`). |
+| **Back-end** (Python, FastAPI) | Garde l'état partagé (disposition, retard, flèches, rejeu), le diffuse par WebSocket, crée les chemins MediaMTX, extrait les clips, gère le stockage (volée en cours sur le serveur, volées terminées sur la clé USB). Ajoute/retire aussi les caméras créées depuis un téléphone (`/api/cameras/telephone`), sans toucher au yaml. |
+| **Interface** (React, nginx) | Trois pages : l'écran (affichage seul), la télécommande et `/camera` (caméra/micro d'un téléphone). nginx sert aussi les clips, relaie HLS/API/WHIP, et termine le HTTPS (certificat auto-signé, requis par les navigateurs pour `getUserMedia`). |
 | **Détecteur de lâcher** | Conteneur optionnel qui écoute un micro USB et signale chaque lâcher. |
 | **Nœuds Raspberry Pi** | Hors Docker (systemd), pour rester légers sur un Pi Zero 2 W. Ils encodent avec l'encodeur H.264 matériel du Pi et poussent leur flux vers le serveur. |
 
@@ -111,7 +115,7 @@ Le back-end est la seule source de vérité. Toute action (télécommande, micro
 
 | Choix | Raison |
 |---|---|
-| HLS plutôt que WebRTC | Le retard est voulu : HLS permet de lire dans le passé avec un simple lecteur web, sur tous les navigateurs. |
+| HLS plutôt que WebRTC pour l'affichage | Le retard est voulu : HLS permet de lire dans le passé avec un simple lecteur web, sur tous les navigateurs. WebRTC n'est utilisé que pour faire entrer le flux d'un téléphone (WHIP), pas pour l'afficher. |
 | Pas de transcodage au serveur | Le Pi 5 n'a pas d'encodeur H.264 matériel. Les caméras USB en MJPEG sont encodées une seule fois (libx264 ultrafast, ou VAAPI sur Intel). |
 | Nœuds qui poussent leur flux | Le serveur (10.42.0.1) n'a besoin de connaître l'adresse d'aucun nœud. |
 | Nœuds hors Docker | Un Pi Zero 2 W n'a que 512 Mo de RAM ; picamera2 s'installe directement par apt. |
@@ -123,7 +127,9 @@ Le back-end est la seule source de vérité. Toute action (télécommande, micro
 | Port | Service | Exposé |
 |---|---|---|
 | 80 | Interface, API, HLS, clips | oui |
+| 443 | Idem, en HTTPS (requis pour `/camera`) | oui |
 | 8554 | RTSP (publication des nœuds) | oui |
+| 8889 | WHIP MediaMTX (publication WebRTC) | interne (via `/webrtc/`) |
 | 8888 | HLS MediaMTX | interne (via `/hls/`) |
 | 9996 | Relecture MediaMTX | interne |
 | 9997 | API de contrôle MediaMTX | interne |

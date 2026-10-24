@@ -83,6 +83,10 @@ Aucun autre champ : c'est le nœud qui publie vers `rtsp://<serveur>:8554/<id>`.
 
 Réglez dans la caméra elle-même une image clé par seconde (« I-frame interval » = cadence) pour un retard précis.
 
+### Caméras ajoutées depuis un téléphone
+
+Les caméras ouvertes depuis `/camera` (voir [Ajouter une caméra depuis un téléphone](utilisation.md#ajouter-une-caméra-depuis-un-téléphone)) n'apparaissent pas ici : elles sont créées à la volée (identifiants `tel-xxxxxx`), gardées en mémoire tant qu'elles publient, et ne survivent pas à un redémarrage du back-end.
+
 ## Exemple : ajouter une vue du dessus et une vue 3/4 face
 
 ```yaml

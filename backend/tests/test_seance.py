@@ -90,7 +90,7 @@ def test_reconcilier_disposition():
         {"id": "c", "nom": "C", "type": "reseau"},
     ]})
     e = {"disposition": {"ordre": ["b", "c", "a"], "masquees": ["b", "c"], "focus": "b"}}
-    seance.reconcilier_disposition(e, c)
+    seance.reconcilier_disposition(e, c.cameras)
     assert e["disposition"] == {"ordre": ["c", "a"], "masquees": ["c"], "focus": None}
 
 

@@ -89,9 +89,14 @@ def test_reconcilier_disposition():
         {"id": "a", "nom": "A", "type": "reseau"},
         {"id": "c", "nom": "C", "type": "reseau"},
     ]})
-    e = {"disposition": {"ordre": ["b", "c", "a"], "masquees": ["b", "c"], "focus": "b"}}
+    e = {"disposition": {"ordre": ["b", "c", "a"], "masquees": ["b", "c"], "miroir": ["b", "a"], "focus": "b"}}
     seance.reconcilier_disposition(e, c.cameras)
-    assert e["disposition"] == {"ordre": ["c", "a"], "masquees": ["c"], "focus": None}
+    assert e["disposition"] == {"ordre": ["c", "a"], "masquees": ["c"], "miroir": ["a"], "focus": None}
+
+    # État enregistré avant l'option miroir : la liste est créée vide
+    ancien = {"disposition": {"ordre": ["a"], "masquees": [], "focus": None}}
+    seance.reconcilier_disposition(ancien, c.cameras)
+    assert ancien["disposition"]["miroir"] == []
 
 
 def test_id_seance_unique_meme_dans_la_meme_seconde():

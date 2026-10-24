@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import legacy from "@vitejs/plugin-legacy";
 
 // En développement : `npm run dev` avec le back-end sur :8000 et MediaMTX sur :8888
 const backend = process.env.ARC_BACKEND || "http://localhost:8000";
@@ -20,10 +21,23 @@ const enTetesSolo = {
 };
 
 export default defineConfig({
-  plugins: [react(), enTetesSolo],
+  plugins: [
+    react(),
+    enTetesSolo,
+    // Version de secours pour les vieux navigateurs (iPad 2 : iOS 9, Safari 9).
+    // Ils ignorent <script type="module"> et chargent cette version traduite en ES5,
+    // les navigateurs récents gardent la version moderne.
+    legacy({
+      targets: ["defaults", "safari >= 9", "ios >= 9"],
+      additionalLegacyPolyfills: ["whatwg-fetch"], // fetch arrive avec Safari 10.1
+    }),
+  ],
+  build: {
+    chunkSizeWarningLimit: 1000, // hls.js pèse à lui seul ~500 ko
+    cssTarget: ["safari9", "chrome87", "firefox78"], // préfixes et syntaxe CSS compatibles iOS 9
+  },
   // Adresses relatives : la version solo marche quel que soit le dossier d'hébergement
   base: solo ? "./" : "/",
-  build: { chunkSizeWarningLimit: 1000 }, // hls.js pèse à lui seul ~500 ko
   server: {
     host: true,
     proxy: {

@@ -84,6 +84,7 @@ export default function Telecommande({ integree = false }) {
   const derniere = etat.fleches.at(-1);
   const camerasParId = Object.fromEntries(etat.cameras.map((c) => [c.id, c]));
   const { ordre, masquees, focus } = etat.disposition;
+  const miroir = etat.disposition.miroir || [];
   const volees = [...new Set(etat.fleches.map((f) => f.volee))].reverse();
   const voleeAffichee = voleeOuverte ?? volees[0];
   const trouver = (id) => etat.fleches.find((f) => f.id === id);
@@ -105,6 +106,10 @@ export default function Telecommande({ integree = false }) {
   const basculerMasque = (id) =>
     agir("disposition", {
       masquees: masquees.includes(id) ? masquees.filter((m) => m !== id) : [...masquees, id],
+    });
+  const basculerMiroir = (id) =>
+    agir("disposition", {
+      miroir: miroir.includes(id) ? miroir.filter((m) => m !== id) : [...miroir, id],
     });
 
   const statutFleche = (f) =>
@@ -157,6 +162,9 @@ export default function Telecommande({ integree = false }) {
         </div>
       )}
 
+      {/* Grand écran (tablette) : deux colonnes, le tir à gauche, les réglages à droite */}
+      <div className="colonnes">
+      <div className="colonne">
       <Section titre="Rejeu">
         {!rejeu ? (
           <button
@@ -301,7 +309,9 @@ export default function Telecommande({ integree = false }) {
           </p>
         )}
       </Section>
+      </div>
 
+      <div className="colonne">
       <Section titre="Séance">
         <div className="rangee">
           <button className="bouton" onClick={() => agir("marquer")}>
@@ -386,6 +396,10 @@ export default function Telecommande({ integree = false }) {
                   disabled={cachee} onClick={() => agir("focus", { camera: focus === id ? null : id })}>
                   ⤢
                 </button>
+                <button className={`icone ${miroir.includes(id) ? "icone--actif" : ""}`}
+                  aria-label="Miroir" title="Retourner l'image (miroir)" onClick={() => basculerMiroir(id)}>
+                  ⇆
+                </button>
                 <button className="icone" aria-label={cachee ? "Afficher" : "Masquer"} onClick={() => basculerMasque(id)}>
                   {cachee ? "○" : "●"}
                 </button>
@@ -446,6 +460,8 @@ export default function Telecommande({ integree = false }) {
           Recharger la configuration des caméras
         </button>
       </Section>
+      </div>
+      </div>
     </div>
   );
 }

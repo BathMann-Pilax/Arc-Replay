@@ -50,8 +50,9 @@ Dès deux impacts localisés par le nœud cible, le mini-blason de l'écran mont
 ### Affichage
 
 - **Retard** : de 3 à 30 s. Changement immédiat sur l'écran.
-- **Droitier / Gaucher** : indique la latéralité de l'archer, enregistrée avec chaque flèche. Les images ne sont jamais retournées : le changement de côté est physique (écran sur support roulant, caméra de profil), voir [Changer de côté](#changer-de-côté-droitier--gaucher).
-- **Caméras** : ↑ ↓ pour l'ordre, ⤢ pour agrandir une vue (les autres passent en bande latérale), ● / ○ pour masquer ou afficher.
+- **Droitier / Gaucher** : indique la latéralité de l'archer, enregistrée avec chaque flèche. Les images ne sont pas retournées automatiquement : le changement de côté est physique (écran sur support roulant, caméra de profil), voir [Changer de côté](#changer-de-côté-droitier--gaucher).
+- **Caméras** : ↑ ↓ pour l'ordre, ⤢ pour agrandir une vue (les autres passent en bande latérale), ● / ○ pour masquer ou afficher, ⇆ pour retourner l'image en miroir (direct, rejeu et comparaison ; bouton bleu quand le miroir est actif).
+- **Tablette** : dès 760 px de large (iPad, portrait compris), la télécommande s'affiche sur deux colonnes, le tir à gauche, les réglages à droite. Elle fonctionne aussi sur les anciens iPad (iPad 2, iOS 9).
 
 ### Clé USB : où vont les vidéos
 

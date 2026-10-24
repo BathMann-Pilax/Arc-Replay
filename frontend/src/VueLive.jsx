@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
  * même heure, elles restent donc synchronisées entre elles.
  * Sans date dans le flux, on se rabat sur « bord du direct − délai ».
  */
-export default function VueLive({ camera, delai, decalage, etiquette = true }) {
+export default function VueLive({ camera, delai, decalage, etiquette = true, miroir = false }) {
   const videoRef = useRef(null);
   const reglages = useRef({ delai, decalage });
   reglages.current = { delai, decalage };
@@ -92,6 +92,7 @@ export default function VueLive({ camera, delai, decalage, etiquette = true }) {
     <div className={`vue ${statut !== "ok" ? "vue--attente" : ""}`}>
       <video
         ref={videoRef}
+        className={miroir ? "video--miroir" : undefined}
         muted
         playsInline
         autoPlay

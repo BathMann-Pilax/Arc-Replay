@@ -260,7 +260,14 @@ def test_commandes_affichage(client):
     client.post("/api/commande", json={"action": "focus", "camera": "cible"})
     e = client.get("/api/etat").json()
     assert e["lateralite"] == "gaucher"
-    assert e["disposition"] == {"ordre": ["cible", "profil"], "masquees": ["profil"], "focus": "cible"}
+    assert e["disposition"] == {"ordre": ["cible", "profil"], "masquees": ["profil"],
+                                "miroir": [], "focus": "cible"}
+
+    # Miroir : seules les caméras connues sont gardées, l'ordre et le masquage ne bougent pas
+    client.post("/api/commande", json={"action": "disposition", "miroir": ["cible", "inconnue"]})
+    d = client.get("/api/etat").json()["disposition"]
+    assert d["miroir"] == ["cible"]
+    assert d["masquees"] == ["profil"]
 
     r = client.post("/api/commande", json={"action": "disposition", "ordre": ["cible"]})
     assert r.status_code == 400

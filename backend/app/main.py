@@ -410,6 +410,7 @@ class Commande(BaseModel):
     valeur: Optional[float | str | bool] = None
     ordre: Optional[list[str]] = None
     masquees: Optional[list[str]] = None
+    miroir: Optional[list[str]] = None  # disposition : vues retournées en miroir
     camera: Optional[str] = None
     fleche_id: Optional[str] = None
     fleche_id_b: Optional[str] = None  # comparaison : seconde flèche
@@ -515,6 +516,7 @@ async def retirer_camera_telephone(cam_id: str):
         e = s.etat
         e["disposition"]["ordre"] = [i for i in e["disposition"]["ordre"] if i != cam_id]
         e["disposition"]["masquees"] = [i for i in e["disposition"]["masquees"] if i != cam_id]
+        e["disposition"]["miroir"] = [i for i in e["disposition"].get("miroir", []) if i != cam_id]
         if e["disposition"].get("focus") == cam_id:
             e["disposition"]["focus"] = None
         await s.diffuser()
@@ -558,6 +560,8 @@ async def commande(c: Commande):
                 e["disposition"]["ordre"] = c.ordre
             if c.masquees is not None:
                 e["disposition"]["masquees"] = [i for i in c.masquees if i in ids]
+            if c.miroir is not None:
+                e["disposition"]["miroir"] = [i for i in c.miroir if i in ids]
         elif c.action == "focus":
             e["disposition"]["focus"] = c.camera if c.camera in ids else None
         elif c.action == "qr":

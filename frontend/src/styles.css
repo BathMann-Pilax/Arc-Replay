@@ -48,6 +48,7 @@ button { font: inherit; color: inherit; }
   color: var(--texte-doux); font-size: 1rem; text-align: center; padding: 1rem;
 }
 .vue--attente video { opacity: 0.3; }
+.video--miroir { transform: scaleX(-1); } /* vue retournée depuis la télécommande */
 
 .pastille {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
@@ -107,6 +108,16 @@ button { font: inherit; color: inherit; }
   padding-bottom: calc(40px + env(safe-area-inset-bottom));
 }
 .telecommande--integree { padding-top: 56px; }
+
+/* Tablette (iPad dès 768 px, portrait compris) : deux colonnes sur toute la largeur.
+   Flexbox et marges seulement, pour rester compatible avec Safari 9 (iPad 2).
+   Pas dans le tiroir de l'écran (?controles), trop étroit. */
+@media (min-width: 760px) {
+  .telecommande:not(.telecommande--integree) { max-width: 1280px; padding-left: 20px; padding-right: 20px; }
+  .telecommande:not(.telecommande--integree) .colonnes { display: flex; align-items: flex-start; }
+  .telecommande:not(.telecommande--integree) .colonne { flex: 1 1 0; min-width: 0; }
+  .telecommande:not(.telecommande--integree) .colonne + .colonne { margin-left: 16px; }
+}
 .telecommande--vide { display: grid; place-items: center; height: 100vh; color: var(--texte-doux); }
 
 .entete {
@@ -248,3 +259,19 @@ progress { width: 100%; height: 10px; accent-color: var(--or); }
 .camera--erreur { justify-content: center; height: 100vh; text-align: center; }
 .camera__micro { display: flex; flex-direction: column; gap: 8px; }
 .camera__micro meter { width: 100%; height: 10px; }
+
+/* ---------- Vieux navigateurs (iPad 2 : iOS 9, Safari 9) ----------
+   Ni grille CSS ni « gap » sur flexbox : on recrée les espacements avec des marges.
+   Ne s'applique qu'aux navigateurs sans grille, les autres ne sont pas touchés. */
+@supports not (display: grid) {
+  .telecommande--vide { display: flex; align-items: center; justify-content: center; }
+  .section > * + *, .reglage > * + *, .cameras > * + * { margin-top: 8px; }
+  .entete > * + *, .cameras li > * + *, .interrupteur > * + * { margin-left: 8px; }
+  .entete > .entete__seance { margin-left: auto; }
+  .rangee > *, .fleches > * { margin: 0 8px 8px 0; }
+  .fleches { display: flex; flex-wrap: wrap; }
+  .fleches > * { flex: 0 0 64px; }
+  .clavier-score { display: flex; flex-wrap: wrap; }
+  .clavier-score > * { width: calc((100% - 30px) / 6); margin: 0 6px 6px 0; }
+  .clavier-score > :nth-child(6n) { margin-right: 0; }
+}

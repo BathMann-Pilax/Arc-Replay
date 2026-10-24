@@ -49,7 +49,7 @@ export default function Ecran() {
 
   const vue = (c, etiquette = true) => (
     <VueLive key={c.id} camera={c} delai={etat.delai_s} decalage={decalage}
-      etiquette={etiquette} />
+      etiquette={etiquette} miroir={(etat.disposition.miroir || []).includes(c.id)} />
   );
 
   return (

@@ -67,6 +67,7 @@ export default function Rejeu({ etat }) {
       key={cle}
       ref={(el) => (videos.current[cle] = el)}
       src={urlFichier(f.clips[cam.id])}
+      className={(etat.disposition.miroir || []).includes(cam.id) ? "video--miroir" : undefined}
       muted
       playsInline
       loop

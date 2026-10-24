@@ -37,6 +37,7 @@ def etat_initial(config: Config, heure: Optional[datetime] = None) -> dict:
         "disposition": {
             "ordre": [c.id for c in config.cameras],
             "masquees": [],
+            "miroir": [],  # vues retournées gauche-droite
             "focus": None,
         },
         "afficher_qr": True,
@@ -55,6 +56,7 @@ def reconcilier_disposition(etat: dict, cameras: list[Camera]) -> None:
     ordre += [i for i in ids if i not in ordre]
     disp["ordre"] = ordre
     disp["masquees"] = [i for i in disp.get("masquees", []) if i in ids]
+    disp["miroir"] = [i for i in disp.get("miroir", []) if i in ids]
     if disp.get("focus") not in ids:
         disp["focus"] = None
 

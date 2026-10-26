@@ -96,3 +96,23 @@ export function codeDepuisAdresse(recherche, memorise) {
 export function adresseTelecommande(origine, code) {
   return code ? `${origine}/telecommande?code=${encodeURIComponent(code)}` : `${origine}/telecommande`;
 }
+
+/**
+ * Texte du QR code de connexion Wi-Fi (format reconnu par iOS et Android).
+ * Les caractères \ ; , : " du nom et du mot de passe sont protégés par \.
+ */
+export function texteQrWifi(ssid, motDePasse) {
+  const proteger = (v) => String(v).replace(/([\\;,:"])/g, "\\$1");
+  const securite = motDePasse ? "WPA" : "nopass";
+  return `WIFI:T:${securite};S:${proteger(ssid)};P:${proteger(motDePasse || "")};;`;
+}
+
+/**
+ * Adresse du serveur à mettre dans les QR codes. Un écran branché sur le serveur
+ * lui-même l'ouvre en « localhost », adresse inutilisable depuis un téléphone :
+ * on prend alors l'adresse publique donnée par le serveur.
+ */
+export function origineVisible(origine, nomHote, adressePublique) {
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(nomHote);
+  return local && adressePublique ? adressePublique : origine;
+}

@@ -7,7 +7,8 @@
 | Serveur | Raspberry Pi 5 (4 ou 8 Go) + SSD NVMe | Ou mini-PC Intel N100, plus à l'aise au-delà de 3 caméras USB et pour le 100 i/s. Évitez la carte SD : l'enregistrement continu l'use vite. |
 | Caméras autour de l'archer | Webcams USB UVC, MJPEG 720p ou 1080p | Une caméra qui sort du H.264 soulage le serveur (`encodeur: copy`). |
 | Caméra ralenti | Webcam USB 100/120 i/s en 720p | 100 i/s en salle (éclairage 50 Hz), 120 i/s en extérieur. |
-| Nœud cible | Raspberry Pi 4 + Camera Module 3 Wide | Dans le coffre d'éclairage, sur secteur. Pi 4 pour le Wi-Fi 5 GHz et le calcul. |
+| Vue de la cible (jusqu'à 18 m) | Raspberry Pi 4 + caméra HQ (version M12) + objectif M12 25 mm | Sur un trépied au pas de tir : rien dans le coffre de la cible. Voir « Caméra de cible sur le pas de tir ». |
+| Nœud cible (option) | Raspberry Pi 4 + Camera Module 3 Wide | Dans le coffre d'éclairage, pour la détection automatique du score. |
 | Nœud caméra Wi-Fi | Pi Zero 2 W + Camera Module 3 | Pour une vue éloignée sans câble. |
 | Micro (optionnel) | Micro USB | Détection automatique du lâcher. |
 | Écran | TV + boîtier HDMI, ou tablette | Voir « Écran » plus bas. |
@@ -144,6 +145,35 @@ journalctl -u arc-replay-camera -f
 ```
 
 Un Pi Zero 2 W n'a que du Wi-Fi 2,4 GHz : gardez-le à moins d'une quinzaine de mètres du serveur, et limitez-le à 1080p 30 i/s autour de 4 à 6 Mbit/s.
+
+### Caméra de cible sur le pas de tir
+
+Pour voir la cible sur la mosaïque sans rien installer dans le coffre : une caméra HQ de Raspberry Pi (version à monture M12) avec un objectif M12 de 25 mm, sur un trépied à côté de l'archer. À 18 m, l'objectif voit 4,5 × 3,4 m ; on ne garde que la zone de la cible, lue en pleine définition sur le capteur de 12 Mpx (environ 1,1 mm par pixel). Au-delà de 18 m, la cible devient trop petite pour cet objectif.
+
+1. Brancher la caméra HQ sur un Raspberry Pi 4 (nappe CSI), le poser sur un trépied stable, près de l'archer et presque dans l'axe de la cible.
+2. Déclarer la caméra côté serveur, avec le recadrage :
+
+   ```yaml
+   - id: cible
+     nom: Cible
+     type: reseau
+     recadrage: true
+   ```
+
+3. Installer le nœud : `sudo ./installer.sh camera cible 10.42.0.1`, puis dans `/etc/default/arc-replay-camera` :
+
+   ```bash
+   ARC_LARGEUR=1280
+   ARC_HAUTEUR=720
+   ARC_FPS=10            # pleine définition : 10 images/s au plus sur la caméra HQ
+   ARC_OPTIONS="--recadrage --capteur-complet"
+   ```
+
+   et `sudo systemctl restart arc-replay-camera`.
+4. Faire la mise au point à la main : tourner l'objectif en regardant l'image (zoom ×4 pour bien juger), puis le bloquer avec sa bague.
+5. Dans la télécommande, section « Affichage », bouton **Cadrage de la cible** : Zoom + / − et flèches pour cadrer le blason. Un zoom de ×3 environ cadre la cible et son entourage à 18 m. Le réglage est appliqué en moins d'une seconde et gardé d'une séance à l'autre.
+
+10 images par seconde suffisent pour une cible : on y voit arriver les flèches et le groupement. La détection automatique du score reste prévue pour une caméra dans le coffre de la cible (« Nœud cible ») : vue depuis le pas de tir, la flèche plantée pointe vers la caméra et masque son point d'impact. Sans nœud cible, le score se saisit dans la télécommande.
 
 ## 4. Écran
 

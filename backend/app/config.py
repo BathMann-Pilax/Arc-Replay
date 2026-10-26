@@ -16,6 +16,7 @@ ID_CAMERA = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 DEBIT = re.compile(r"^\d+(\.\d+)?[kKmM]?$")
 DELAI_MIN_S = 3
 DELAI_MAX_S = 30
+ZOOM_MAX = 8
 
 
 class Camera(BaseModel):
@@ -37,6 +38,8 @@ class Camera(BaseModel):
 
     # Affichage
     ralenti: bool = False
+    # Nœud Raspberry Pi qui applique le recadrage réglé depuis la télécommande
+    recadrage: bool = False
 
     @field_validator("id")
     @classmethod
@@ -84,6 +87,11 @@ class Serveur(BaseModel):
     code_telecommande: Optional[str] = Field(None, max_length=64)
     # En dessous, la télécommande affiche une alerte
     alerte_espace_go: float = Field(2, ge=0)
+    # Wi-Fi du serveur, pour le QR code de connexion (rempli par point-acces-wifi.sh)
+    wifi_ssid: Optional[str] = Field(None, max_length=32)
+    wifi_mot_de_passe: Optional[str] = Field(None, max_length=63)
+    # Adresse du serveur vue des téléphones (QR code quand l'écran est sur le serveur lui-même)
+    adresse_publique: str = "http://10.42.0.1"
 
 
 class Volees(BaseModel):

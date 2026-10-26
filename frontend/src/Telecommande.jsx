@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { commande, memoriserCode, recharger, useEtat } from "./api";
 import { BLASONS, camerasCommunes, indexBlason, libelleScore, rejouable, valeurScore } from "./logique";
+import EditeurCadrage from "./EditeurCadrage";
 import EditeurReperes from "./EditeurReperes";
 
 const VITESSES = [1, 0.5, 0.25];
@@ -67,6 +68,7 @@ export default function Telecommande({ integree = false }) {
   const [selection, setSelection] = useState(null); // flèche choisie pour le score
   const [comparaison, setComparaison] = useState(null); // null, ou [] puis [id A] en cours de choix
   const [editeurReperes, setEditeurReperes] = useState(false);
+  const [editeurCadrage, setEditeurCadrage] = useState(false);
 
   const agir = async (action, params) => {
     setErreur(null);
@@ -454,6 +456,13 @@ export default function Telecommande({ integree = false }) {
           </button>
         </div>
         {editeurReperes && <EditeurReperes etat={etat} agir={agir} />}
+        {etat.cameras.some((c) => c.recadrage) && (
+          <button className={`bouton ${editeurCadrage ? "bouton--actif" : ""}`}
+            onClick={() => setEditeurCadrage(!editeurCadrage)}>
+            Cadrage de la cible
+          </button>
+        )}
+        {editeurCadrage && <EditeurCadrage etat={etat} agir={agir} />}
 
         <label className="interrupteur">
           <input type="checkbox" checked={etat.afficher_qr}

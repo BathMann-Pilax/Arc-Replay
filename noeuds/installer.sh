@@ -43,6 +43,7 @@ id arc &>/dev/null || useradd --system --groups video --home-dir "$DEST" --shell
 echo "==> Fichiers"
 install -d "$DEST/camera"
 install -m 755 "$ICI/camera/streamer.py" "$DEST/camera/"
+install -m 644 "$ICI/camera/recadrage.py" "$DEST/camera/"
 
 echo "==> Heure : synchronisation sur le serveur (pas d'internet sur le terrain)"
 cat > /etc/chrony/conf.d/arc-replay.conf <<EOF
@@ -59,6 +60,10 @@ ARC_LARGEUR=1920
 ARC_HAUTEUR=1080
 ARC_FPS=30
 ARC_DEBIT=6000000
+# Caméra de cible sur le pas de tir (caméra HQ + objectif 25 mm) :
+#   ARC_LARGEUR=1280 ARC_HAUTEUR=720 ARC_FPS=10
+#   ARC_OPTIONS="--recadrage --capteur-complet"
+ARC_OPTIONS=
 EOF
   install -m 644 "$ICI/systemd/arc-replay-camera.service" /etc/systemd/system/
   systemctl daemon-reload
@@ -68,7 +73,7 @@ else
   install -d "$DEST/cible"
   install -m 755 "$ICI/cible/cible.py" "$ICI/cible/calibrer.py" "$DEST/cible/"
   install -m 644 "$ICI/cible/detection.py" "$DEST/cible/"
-  install -m 644 "$ICI/camera/streamer.py" "$DEST/cible/"
+  install -m 644 "$ICI/camera/streamer.py" "$ICI/camera/recadrage.py" "$DEST/cible/"
   if [[ ! -f $DEST/cible/cible.yml ]]; then
     sed "s/^serveur: .*/serveur: $SERVEUR          # adresse du serveur/" "$ICI/cible/cible.yml" > "$DEST/cible/cible.yml"
   fi

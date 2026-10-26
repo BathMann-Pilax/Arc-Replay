@@ -3,9 +3,9 @@
 ## Mise en route d'une séance
 
 1. Allumer le serveur (et les nœuds) ; attendre une minute.
-2. Connecter l'écran et le téléphone au Wi-Fi `ArcReplay`.
-3. Ouvrir `http://10.42.0.1/` sur l'écran.
-4. Scanner le QR code affiché en bas à droite avec le téléphone : la télécommande s'ouvre.
+2. Connecter l'écran au Wi-Fi `ArcReplay` et ouvrir `http://10.42.0.1/`.
+3. Avec le téléphone, scanner le QR code **1. Wi-Fi** en bas à droite de l'écran : il se connecte au réseau sans saisir le mot de passe.
+4. Scanner ensuite le QR code **2. Télécommande** : la télécommande s'ouvre.
 5. L'archer branche sa clé USB sur le serveur s'il veut garder ses vidéos.
 6. Placer l'écran du bon côté, vérifier le retard, tirer.
 
@@ -15,7 +15,7 @@ Chaque démarrage du serveur ouvre une séance neuve et vide le serveur. En fin 
 
 - **En haut à gauche** : état de la connexion, retard en cours (`−10 s`), volée et numéro de flèche.
 - **En haut à droite** : mini-blason avec les impacts de la volée (si le nœud cible est installé) et le score de la dernière flèche.
-- **En bas à droite** : QR code de la télécommande (masquable depuis la télécommande).
+- **En bas à droite** : QR code du Wi-Fi (si `wifi_ssid` est configuré, ce que fait `scripts/point-acces-wifi.sh`), puis QR code de la télécommande. Masquables depuis la télécommande.
 
 L'écran ne demande aucune interaction : il suit la télécommande. Plusieurs écrans peuvent afficher la même chose.
 
@@ -58,6 +58,7 @@ Dès deux impacts localisés par le nœud cible, le mini-blason de l'écran mont
 - **Caméras** : ↑ ↓ pour l'ordre, ⤢ pour agrandir une vue (les autres passent en bande latérale), ● / ○ pour masquer ou afficher, ⇆ pour retourner l'image en miroir (direct, rejeu et comparaison ; bouton bleu quand le miroir est actif).
 - **Grille** : quadrillage (6 × 4) par-dessus toutes les vues, en direct et en rejeu.
 - **Lignes de repère** : choisir une caméra, la télécommande affiche une image fixe de cette caméra ; toucher deux points trace une ligne (verticale du corps, ligne des épaules, niveau de l'ancrage…). Elle s'affiche sur l'écran avec son angle par rapport à l'horizontale, en direct, en rejeu et en comparaison, et reste en place si l'on active le miroir. Jusqu'à 8 lignes par caméra, effaçables une par une ; « Nouvelle image » rafraîchit la photo. Grille et lignes sont gardées d'une séance à l'autre : si une caméra bouge, retracez ses lignes.
+- **Cadrage de la cible** (caméra déclarée avec `recadrage: true`) : aperçu de la caméra, Zoom + / −, flèches pour déplacer la zone, ● pour recentrer, « Image entière » pour revenir au champ complet. Le nœud applique le réglage en moins d'une seconde. Si vous recadrez une caméra qui a des lignes de repère, retracez-les.
 - **Tablette** : dès 760 px de large (iPad, portrait compris), la télécommande s'affiche sur deux colonnes, le tir à gauche, les réglages à droite. Elle fonctionne aussi sur les anciens iPad (iPad 2, iOS 9).
 
 ### Clé USB : où vont les vidéos

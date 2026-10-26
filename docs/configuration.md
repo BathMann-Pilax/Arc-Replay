@@ -13,6 +13,8 @@ Tout se règle dans `config/arc-replay.yml`. Après une modification : bouton **
 | `code_telecommande` | vide | Code exigé pour piloter depuis la télécommande. Inutile sur le Wi-Fi `ArcReplay` protégé par mot de passe ; conseillé si le serveur est branché sur le réseau du club. Voir [Code de la télécommande](utilisation.md#code-de-la-télécommande). |
 | `alerte_espace_go` | `2` | En dessous de cet espace libre sur le serveur (Go), la télécommande affiche une alerte. |
 | `enregistrements` | `/recordings` | Enregistrements bruts de MediaMTX, vidés au démarrage et en fin de séance. |
+| `wifi_ssid`, `wifi_mot_de_passe` | vides | Wi-Fi du serveur. Renseignés, l'écran affiche un QR code « 1. Wi-Fi » à côté de celui de la télécommande : le téléphone se connecte sans saisir le mot de passe. `scripts/point-acces-wifi.sh` les remplit tout seul. |
+| `adresse_publique` | `http://10.42.0.1` | Adresse du serveur pour les téléphones. Sert au QR code quand l'écran est ouvert sur le serveur lui-même (`http://localhost/`). |
 
 ## `volees`
 
@@ -89,7 +91,11 @@ L'ordre de la liste est l'ordre par défaut de la mosaïque ; il se change ensui
 
 ### Nœud Raspberry Pi (`type: reseau`)
 
-Aucun autre champ : c'est le nœud qui publie vers `rtsp://<serveur>:8554/<id>`. L'`id` doit être celui passé à `installer.sh`.
+C'est le nœud qui publie vers `rtsp://<serveur>:8554/<id>`. L'`id` doit être celui passé à `installer.sh`.
+
+| Champ | Rôle |
+|---|---|
+| `recadrage: true` | Le cadrage du nœud se règle depuis la télécommande (zoom et déplacement), voir [Caméra de cible sur le pas de tir](installation.md#caméra-de-cible-sur-le-pas-de-tir). |
 
 ### Caméra IP (`type: rtsp`)
 

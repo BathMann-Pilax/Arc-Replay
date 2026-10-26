@@ -7,6 +7,12 @@ adresse : c'est le nœud qui pousse son flux.
 
     python3 streamer.py --serveur 10.42.0.1 --chemin cible
 
+Caméra de cible sur le pas de tir (caméra HQ + objectif 25 mm) : recadrage réglé
+depuis la télécommande, capteur en pleine définition (10 images/s) :
+
+    python3 streamer.py --chemin cible --largeur 1280 --hauteur 720 --fps 10 \
+        --recadrage --capteur-complet
+
 Le module expose aussi `demarrer_flux()`, réutilisé par le nœud cible.
 """
 
@@ -21,11 +27,13 @@ log = logging.getLogger("arc.camera")
 
 
 def demarrer_flux(serveur: str, chemin: str, largeur: int, hauteur: int, fps: int,
-                  debit: int, lores: tuple[int, int] | None = None):
+                  debit: int, lores: tuple[int, int] | None = None, capteur_complet: bool = False):
     """Démarre la caméra et la publication RTSP. Renvoie l'objet Picamera2.
 
     `lores` ajoute un second flux basse définition en niveaux de gris,
     lisible avec picam.capture_array("lores") pour l'analyse d'image.
+    `capteur_complet` lit le capteur sans regroupement de pixels : un recadrage
+    fort reste net, mais la cadence est limitée (10 i/s sur la caméra HQ).
     """
     from picamera2 import Picamera2
     from picamera2.encoders import H264Encoder
@@ -36,6 +44,8 @@ def demarrer_flux(serveur: str, chemin: str, largeur: int, hauteur: int, fps: in
     options = {"main": flux, "controls": {"FrameRate": fps}}
     if lores:
         options["lores"] = {"size": lores, "format": "YUV420"}
+    if capteur_complet:
+        options["sensor"] = {"output_size": picam.sensor_resolution}
     picam.configure(picam.create_video_configuration(**options))
 
     # Image clé toutes les secondes : segments HLS d'1 s et clips précis côté serveur
@@ -60,6 +70,10 @@ def arguments(description: str = __doc__) -> argparse.ArgumentParser:
     p.add_argument("--hauteur", type=int, default=1080)
     p.add_argument("--fps", type=int, default=30)
     p.add_argument("--debit", type=int, default=6_000_000, help="débit en bit/s")
+    p.add_argument("--recadrage", action="store_true",
+                   help="applique le recadrage réglé depuis la télécommande")
+    p.add_argument("--capteur-complet", action="store_true",
+                   help="capteur en pleine définition (recadrage net, cadence réduite)")
     return p
 
 
@@ -70,7 +84,12 @@ def main() -> int:
     arret = {"demande": False}
     signal.signal(signal.SIGTERM, lambda *_: arret.update(demande=True))
 
-    picam, sortie = demarrer_flux(args.serveur, args.chemin, args.largeur, args.hauteur, args.fps, args.debit)
+    picam, sortie = demarrer_flux(args.serveur, args.chemin, args.largeur, args.hauteur, args.fps, args.debit,
+                                  capteur_complet=args.capteur_complet)
+    if args.recadrage:
+        import recadrage
+
+        recadrage.suivre(picam, args.serveur, args.chemin, args.largeur, args.hauteur)
     code = 0
     try:
         while not arret["demande"]:

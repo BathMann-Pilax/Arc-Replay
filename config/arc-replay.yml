@@ -9,6 +9,11 @@ serveur:
   usb_verifier_montage: true        # false pour tester l'export sans vraie clé
   # code_telecommande: "4821"       # exige ce code pour piloter (utile si le serveur est sur le réseau du club)
   alerte_espace_go: 2               # alerte dans la télécommande sous cet espace libre
+  # Wi-Fi du serveur, pour le QR code de connexion affiché sur l'écran.
+  # Rempli automatiquement par scripts/point-acces-wifi.sh.
+  # wifi_ssid: 'ArcReplay'
+  # wifi_mot_de_passe: 'arcreplay2026'
+  # adresse_publique: http://10.42.0.1   # adresse du serveur pour les téléphones
 
 volees:
   fleches_par_volee: 6      # au-delà, la flèche suivante ouvre une nouvelle volée

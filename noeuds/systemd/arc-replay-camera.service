@@ -7,7 +7,8 @@ Wants=network-online.target
 EnvironmentFile=/etc/default/arc-replay-camera
 ExecStart=/usr/bin/python3 /opt/arc-replay/camera/streamer.py \
     --serveur ${ARC_SERVEUR} --chemin ${ARC_CHEMIN} \
-    --largeur ${ARC_LARGEUR} --hauteur ${ARC_HAUTEUR} --fps ${ARC_FPS} --debit ${ARC_DEBIT}
+    --largeur ${ARC_LARGEUR} --hauteur ${ARC_HAUTEUR} --fps ${ARC_FPS} --debit ${ARC_DEBIT} \
+    $ARC_OPTIONS
 Restart=always
 RestartSec=5
 User=arc

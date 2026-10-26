@@ -79,7 +79,7 @@ class Serveur:
             try:
                 ancien = json.loads(fichier.read_text(encoding="utf-8"))
                 for cle in ("delai_s", "lateralite", "disposition", "afficher_qr", "qr_type",
-                            "blason", "grille", "reperes"):
+                            "blason", "grille", "reperes", "recadrages"):
                     if cle in ancien:
                         etat[cle] = ancien[cle]
             except (OSError, ValueError, TypeError):
@@ -137,6 +137,7 @@ class Serveur:
                     "type": c.type,
                     "fps": c.fps,
                     "ralenti": c.ralenti,
+                    "recadrage": getattr(c, "recadrage", False),
                 }
                 for c in self.toutes_cameras()
             ],
@@ -144,6 +145,11 @@ class Serveur:
             "disque": {**self.disque, "alerte_go": self.config.serveur.alerte_espace_go},
             "groupements": seance.groupements(self.etat),
             "code_requis": bool(self.config.serveur.code_telecommande),
+            "wifi": (
+                {"ssid": self.config.serveur.wifi_ssid, "mot_de_passe": self.config.serveur.wifi_mot_de_passe or ""}
+                if self.config.serveur.wifi_ssid else None
+            ),
+            "adresse_publique": self.config.serveur.adresse_publique.rstrip("/"),
             "erreurs_cameras": self.erreurs_cameras,
             "clips_config": {"avant_s": self.config.clips.avant_s, "apres_s": self.config.clips.apres_s},
         }
@@ -411,7 +417,7 @@ class Commande(BaseModel):
         "rejeu", "rejeu_controle", "rejeu_fermer",
         "nouvelle_volee", "nouvelle_seance", "marquer", "annuler_fleche", "score",
         "comparer", "sauvegarder_usb",
-        "blason", "grille", "repere_ajouter", "repere_supprimer",
+        "blason", "grille", "repere_ajouter", "repere_supprimer", "recadrage",
     ]
     valeur: Optional[float | str | bool] = None
     ordre: Optional[list[str]] = None
@@ -426,6 +432,13 @@ class Commande(BaseModel):
     fleche_id_b: Optional[str] = None  # comparaison : seconde flèche
     superposer: Optional[bool] = None  # comparaison : superposées plutôt que côte à côte
     x: Optional[bool] = None  # saisie du score : X (10 intérieur)
+    # Recadrage : zoom, centre (0 à 1) ou déplacement relatif (fraction de la zone gardée)
+    zoom: Optional[float] = Field(None, ge=1, le=cfg.ZOOM_MAX)
+    centre_x: Optional[float] = Field(None, ge=0, le=1)
+    centre_y: Optional[float] = Field(None, ge=0, le=1)
+    dx: Optional[float] = Field(None, ge=-1, le=1)
+    dy: Optional[float] = Field(None, ge=-1, le=1)
+    reinitialiser: bool = False
     lecture: Optional[bool] = None
     vitesse: Optional[float] = Field(None, gt=0, le=2)
     redemarrer: bool = False
@@ -493,6 +506,12 @@ async def apercu_camera(camera_id: str):
         log.warning("aperçu de %s impossible : %s", camera_id, e)
         raise HTTPException(503, "pas d'image : la caméra est-elle en ligne ?")
     return Response(image, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/recadrage/{camera_id}")
+async def lire_recadrage(camera_id: str):
+    """Lu toutes les demi-secondes par le nœud caméra, qui applique la zone à son capteur."""
+    return srv().etat.get("recadrages", {}).get(camera_id, seance.RECADRAGE_DEFAUT)
 
 
 @app.post("/api/lacher")
@@ -680,6 +699,14 @@ async def commande(c: Commande):
             e["rejeu"] = None
         elif c.action == "nouvelle_volee":
             seance.nouvelle_volee(e)
+        elif c.action == "recadrage":
+            cam = s.config.camera(c.camera or "")
+            if cam is None or not cam.recadrage:
+                raise HTTPException(400, "cette caméra ne se recadre pas (recadrage: true dans la configuration)")
+            e.setdefault("recadrages", {})[cam.id] = seance.recadrer(
+                e["recadrages"].get(cam.id), cfg.ZOOM_MAX, zoom=c.zoom, x=c.centre_x, y=c.centre_y,
+                dx=c.dx, dy=c.dy, reinitialiser=c.reinitialiser,
+            )
         elif c.action == "annuler_fleche":
             f = seance.annuler_derniere(e)
             if f is None:

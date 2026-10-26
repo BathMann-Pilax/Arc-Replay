@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { camerasVisibles, codeTelecommande, useEtat } from "./api";
-import { adresseTelecommande, colonnesPour, libelleScore } from "./logique";
+import { adresseTelecommande, colonnesPour, libelleScore, origineVisible, texteQrWifi } from "./logique";
 import MiniCible from "./MiniCible";
 import Rejeu from "./Rejeu";
 import Telecommande from "./Telecommande";
@@ -22,15 +22,22 @@ function Qr({ adresse, etiquette, texte }) {
   );
 }
 
-function CodeTelecommande() {
+function CodeTelecommande({ origine }) {
   // Si un code est configuré, ouvrir l'écran une fois avec ?code=… : le QR code le transmet
-  const adresse = adresseTelecommande(location.origin, codeTelecommande());
-  return <Qr adresse={adresse} etiquette="Télécommande" texte={`${location.origin}/telecommande`} />;
+  const adresse = adresseTelecommande(origine, codeTelecommande());
+  return <Qr adresse={adresse} etiquette="2. Télécommande" texte={`${origine}/telecommande`} />;
 }
 
-function CodeCamera() {
-  const adresse = `https://${location.hostname}/camera`;
-  return <Qr adresse={adresse} etiquette="Ajouter une caméra" />;
+function CodeCamera({ origine }) {
+  const adresse = `https://${new URL(origine).hostname}/camera`;
+  return <Qr adresse={adresse} etiquette="2. Ajouter une caméra" />;
+}
+
+function CodeWifi({ wifi }) {
+  return (
+    <Qr adresse={texteQrWifi(wifi.ssid, wifi.mot_de_passe)} etiquette="1. Wi-Fi"
+      texte={wifi.mot_de_passe ? `${wifi.ssid} · ${wifi.mot_de_passe}` : wifi.ssid} />
+  );
 }
 
 export default function Ecran() {
@@ -95,7 +102,15 @@ export default function Ecran() {
         </div>
       )}
 
-      {etat.afficher_qr && !etat.rejeu && (etat.qr_type === "camera" ? <CodeCamera /> : <CodeTelecommande />)}
+      {etat.afficher_qr && !etat.rejeu && (() => {
+        const origine = origineVisible(location.origin, location.hostname, etat.adresse_publique);
+        return (
+          <div className="qrs">
+            {etat.wifi && <CodeWifi wifi={etat.wifi} />}
+            {etat.qr_type === "camera" ? <CodeCamera origine={origine} /> : <CodeTelecommande origine={origine} />}
+          </div>
+        );
+      })()}
 
       {controles && (
         <>

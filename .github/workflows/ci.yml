@@ -23,6 +23,7 @@ jobs:
         run: |
           pip install opencv-python-headless numpy pyyaml
           (cd noeuds/cible && pytest -q)
+          (cd noeuds/camera && pytest -q)
           (cd detecteur-lacher && pytest -q)
       - uses: actions/setup-node@v4
         with:

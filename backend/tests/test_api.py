@@ -18,12 +18,13 @@ def client(tmp_path, monkeypatch):
     fichier = tmp_path / "arc-replay.yml"
     fichier.write_text(yaml.safe_dump({
         "serveur": {"usb_chemin": str(usb_dir), "usb_verifier_montage": False,
-                    "donnees": str(tmp_path / "data")},
+                    "donnees": str(tmp_path / "data"),
+                    "wifi_ssid": "ArcReplay", "wifi_mot_de_passe": "arc;2026"},
         "clips": {"avant_s": 1, "apres_s": 0, "marge_s": 0},
         "lacher": {"anti_rebond_s": 0.5},
         "cameras": [
             {"id": "profil", "nom": "Profil", "type": "reseau"},
-            {"id": "cible", "nom": "Cible", "type": "reseau"},
+            {"id": "cible", "nom": "Cible", "type": "reseau", "recadrage": True},
         ],
     }))
     monkeypatch.setenv("ARC_CONFIG", str(fichier))
@@ -282,7 +283,9 @@ def test_websocket_diffuse_l_etat(client):
         premier = ws.receive_json()
         assert premier["type"] == "etat" and premier["etat"]["volee"] == 1
         client.post("/api/commande", json={"action": "marquer"})
-        recu = ws.receive_json()
+        # La surveillance de la clé et du disque diffuse aussi l'état : on attend la flèche
+        while not (recu := ws.receive_json())["etat"]["fleches"]:
+            pass
         assert recu["etat"]["fleches"][0]["id"] == "V01_F1"
         ws.send_text("ping")
         while (m := ws.receive_json())["type"] != "pong":
@@ -374,3 +377,26 @@ def test_apercu_camera(client, monkeypatch):
 
     monkeypatch.setattr(apercu, "capturer", en_panne)
     assert client.get("/api/apercu/profil").status_code == 503
+
+
+def test_recadrage(client):
+    assert client.get("/api/recadrage/cible").json() == {"zoom": 1.0, "x": 0.5, "y": 0.5}
+    r = client.post("/api/commande", json={"action": "recadrage", "camera": "cible", "zoom": 4})
+    assert r.status_code == 200
+    client.post("/api/commande", json={"action": "recadrage", "camera": "cible", "dx": 1, "dy": -0.4})
+    rc = client.get("/api/recadrage/cible").json()
+    assert rc["zoom"] == 4 and rc["x"] == 0.75 and rc["y"] == 0.4
+    assert client.get("/api/etat").json()["recadrages"]["cible"] == rc
+    # Caméra non prévue pour le recadrage
+    r = client.post("/api/commande", json={"action": "recadrage", "camera": "profil", "zoom": 2})
+    assert r.status_code == 400
+    client.post("/api/commande", json={"action": "recadrage", "camera": "cible", "reinitialiser": True})
+    assert client.get("/api/recadrage/cible").json()["zoom"] == 1.0
+
+
+def test_wifi_et_adresse_publique(client):
+    e = client.get("/api/etat").json()
+    assert e["wifi"] == {"ssid": "ArcReplay", "mot_de_passe": "arc;2026"}
+    assert e["adresse_publique"] == "http://10.42.0.1"
+    recadrables = {c["id"]: c["recadrage"] for c in e["cameras"]}
+    assert recadrables["cible"] and not recadrables["profil"]

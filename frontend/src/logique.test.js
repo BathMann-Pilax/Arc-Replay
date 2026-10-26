@@ -1,3 +1,4 @@
+import { origineVisible, texteQrWifi } from "./logique";
 import { describe, expect, it } from "vitest";
 import {
   adresseTelecommande, camerasCommunes, camerasVisibles, codeDepuisAdresse, colonnesPour,
@@ -93,5 +94,18 @@ describe("code de la télécommande", () => {
   it("met le code dans le QR code seulement s'il existe", () => {
     expect(adresseTelecommande("http://10.42.0.1", "")).toBe("http://10.42.0.1/telecommande");
     expect(adresseTelecommande("http://10.42.0.1", "a b")).toBe("http://10.42.0.1/telecommande?code=a%20b");
+  });
+});
+
+describe("QR codes de l'écran", () => {
+  it("encode le Wi-Fi en protégeant les caractères spéciaux", () => {
+    expect(texteQrWifi("ArcReplay", "arcreplay2026")).toBe("WIFI:T:WPA;S:ArcReplay;P:arcreplay2026;;");
+    expect(texteQrWifi("Club;Arc", 'a:b,c"d\\e')).toBe('WIFI:T:WPA;S:Club\\;Arc;P:a\\:b\\,c\\"d\\\\e;;');
+    expect(texteQrWifi("Ouvert", "")).toBe("WIFI:T:nopass;S:Ouvert;P:;;");
+  });
+  it("remplace localhost par l'adresse du serveur", () => {
+    expect(origineVisible("http://localhost", "localhost", "http://10.42.0.1")).toBe("http://10.42.0.1");
+    expect(origineVisible("http://10.42.0.1", "10.42.0.1", "http://10.42.0.1")).toBe("http://10.42.0.1");
+    expect(origineVisible("http://192.168.1.20:8080", "192.168.1.20", "http://10.42.0.1")).toBe("http://192.168.1.20:8080");
   });
 });

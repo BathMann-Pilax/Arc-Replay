@@ -77,6 +77,9 @@ La CI GitHub Actions lance ces mêmes tests, puis construit et publie les images
 | `POST` | `/api/commande` | `{action, …}` : voir ci-dessous. Exige l'en-tête `X-Arc-Code` si `code_telecommande` est réglé. |
 | `POST` | `/api/recharger` | Relit `arc-replay.yml` et reconfigure MediaMTX. Même code que `/api/commande`. |
 | `GET` | `/api/sante` | Contrôle de vie. |
+| `GET` | `/api/cadrage/<id>` | Cadrage effectif d'une caméra à bloc `cadrage`, et nœud connecté ou non. |
+| `POST` | `/api/cadrage/<id>` | `{action: "deplacer", dx, dy}` (en pas), `{action: "zoomer", pas}` (ou `facteur`), `{action: "reinitialiser"}`. Relayé au nœud ; 503 sans nœud, 504 sans réponse. Même code que `/api/commande`. |
+| `WS` | `/api/noeud/ws?camera=<id>` | Canal ouvert par un nœud Raspberry Pi : réglages (`config`), commandes (`commande`), cadrage effectif (`cadrage`, `reponse`). Voir `noeuds/camera/canal.py`. |
 
 Actions de `/api/commande` :
 

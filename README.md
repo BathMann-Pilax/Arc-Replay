@@ -36,7 +36,8 @@ flowchart LR
 - **Annulation** d'un faux lâcher (tir du voisin capté par le micro).
 - **Écran et télécommande séparés** : la TV affiche, le téléphone pilote (QR code à l'écran pour se connecter).
 - **Sauvegarde sur la clé de l'archer**, volée par volée : un dossier par flèche, un fichier par caméra, récapitulatifs CSV. Sans clé, rien n'est conservé ; le serveur est vidé en fin de séance et au démarrage.
-- **Caméra cible** (prototype) : position de l'impact en millimètres et score World Archery.
+- **Vue cible en direct** : caméra HQ au pas de tir, affichée sans retard (WebRTC), cadrée depuis la télécommande (zoom, déplacement), cadrage gardé sur le Pi. Serveur et caméra cible peuvent tenir sur un seul Raspberry Pi 3 B+.
+- **Détection d'impact** (prototype, reportée) : position de l'impact en millimètres et score World Archery.
 - **Fonctionne hors ligne** : le serveur crée son propre réseau Wi-Fi.
 - **Multi-plateforme** : images Docker arm64 et amd64 (Pi 5, Pi 4, mini-PC Intel N100, portable).
 

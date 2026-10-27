@@ -129,7 +129,8 @@ Le back-end est la seule source de vérité. Toute action (télécommande, micro
 | 80 | Interface, API, HLS, clips | oui |
 | 443 | Idem, en HTTPS (requis pour `/camera`) | oui |
 | 8554 | RTSP (publication des nœuds) | oui |
-| 8889 | WHIP MediaMTX (publication WebRTC) | interne (via `/webrtc/`) |
+| 8889 | WebRTC MediaMTX : WHEP (vue cible en direct) et WHIP (téléphones) | via `/webrtc/` (aussi publié pour les tests) |
+| 8189 | ICE WebRTC (vidéo, UDP puis TCP) | oui, obligatoire pour la vue en direct |
 | 8888 | HLS MediaMTX | interne (via `/hls/`) |
 | 9996 | Relecture MediaMTX | interne |
 | 9997 | API de contrôle MediaMTX | interne |

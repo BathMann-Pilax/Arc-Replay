@@ -14,7 +14,8 @@ Chaque démarrage du serveur ouvre une séance neuve et vide le serveur. En fin 
 ## L'écran
 
 - **En haut à gauche** : état de la connexion, retard en cours (`−10 s`), volée et numéro de flèche.
-- **En haut à droite** : mini-blason avec les impacts de la volée (si le nœud cible est installé) et le score de la dernière flèche.
+- **En haut à droite** : mini-blason avec les impacts de la volée (si la détection est active) et le score de la dernière flèche.
+- **Vue de la cible** (caméra `direct: true`) : en direct, sans retard, badge rouge **Direct**. « Direct ~ » : le WebRTC n'a pas pu s'établir, la vue passe par le HLS au bord du direct (2 à 3 s de retard) et le WebRTC est retenté toutes les 30 s. Les autres vues restent en différé.
 - **En bas à droite** : QR code du Wi-Fi (si `wifi_ssid` est configuré, ce que fait `scripts/point-acces-wifi.sh`), puis QR code de la télécommande. Masquables depuis la télécommande.
 
 L'écran ne demande aucune interaction : il suit la télécommande. Plusieurs écrans peuvent afficher la même chose.
@@ -34,7 +35,20 @@ Sans serveur du tout, avec la caméra de la tablette ou du PC : voir le [mode so
 - **Liste des flèches** : choisir une volée (V1, V2…), puis une flèche pour la rejouer. Seules les flèches de la volée en cours ont encore leurs vidéos ; les volées terminées gardent leurs scores (grisées).
 - **Comparer deux flèches** : toucher le bouton, puis deux flèches de la volée (une bonne, une mauvaise). L'écran les montre côte à côte sur une même caméra, alignées sur le lâcher. Pendant la comparaison : changer de caméra, ou passer en **Superposées** (la seconde en transparence par-dessus la première).
 
+### Caméra cible
+
+Section visible quand une caméra a un bloc `cadrage` (vue de la cible au pas de tir).
+
+- **Miniature** en direct de la caméra.
+- **▲ ◀ ▶ ▼** : déplacent la zone de 10 % de sa largeur. Maintenir appuyé pour déplacer en continu.
+- **Zoom + / Zoom −** : ×1,25 par appui, de ×1 à ×8 ; le zoom actuel s'affiche au centre du pavé.
+- **Vue complète** : revient au champ entier du capteur.
+
+Le cadrage est fait dans le capteur par le Raspberry Pi : l'image reste nette et le flux n'est pas coupé. Il est gardé sur le Pi, même après un redémarrage. Si le Pi n'est pas connecté, les boutons sont grisés. Si vous recadrez une caméra qui a des lignes de repère, retracez-les.
+
 ### Score
+
+Section masquée quand la détection est désactivée (`detection: false` sur la caméra cible) : ni score, ni blason, ni mini-blason.
 
 - **Blason** : 122, 80, 80 réduit (5 à 10), 60, 40 cm, trispot 40 vertical ou triangulaire. Case **Arc à poulies** pour le 10 réduit. Changer de blason recalcule les scores détectés de la séance ; le choix est gardé pour les séances suivantes.
 - **Trispot** : une seule flèche compte par spot. Une seconde flèche dans le même spot vaut M (la plus haute des deux), en gris sur le mini-blason. Le mini-blason superpose les trois spots, comme le calcul du groupement.
@@ -58,7 +72,6 @@ Dès deux impacts localisés par le nœud cible, le mini-blason de l'écran mont
 - **Caméras** : ↑ ↓ pour l'ordre, ⤢ pour agrandir une vue (les autres passent en bande latérale), ● / ○ pour masquer ou afficher, ⇆ pour retourner l'image en miroir (direct, rejeu et comparaison ; bouton bleu quand le miroir est actif).
 - **Grille** : quadrillage (6 × 4) par-dessus toutes les vues, en direct et en rejeu.
 - **Lignes de repère** : choisir une caméra, la télécommande affiche une image fixe de cette caméra ; toucher deux points trace une ligne (verticale du corps, ligne des épaules, niveau de l'ancrage…). Elle s'affiche sur l'écran avec son angle par rapport à l'horizontale, en direct, en rejeu et en comparaison, et reste en place si l'on active le miroir. Jusqu'à 8 lignes par caméra, effaçables une par une ; « Nouvelle image » rafraîchit la photo. Grille et lignes sont gardées d'une séance à l'autre : si une caméra bouge, retracez ses lignes.
-- **Cadrage de la cible** (caméra déclarée avec `recadrage: true`) : aperçu de la caméra, Zoom + / −, flèches pour déplacer la zone, ● pour recentrer, « Image entière » pour revenir au champ complet. Le nœud applique le réglage en moins d'une seconde. Si vous recadrez une caméra qui a des lignes de repère, retracez-les.
 - **Tablette** : dès 760 px de large (iPad, portrait compris), la télécommande s'affiche sur deux colonnes, le tir à gauche, les réglages à droite. Elle fonctionne aussi sur les anciens iPad (iPad 2, iOS 9).
 
 ### Clé USB : où vont les vidéos

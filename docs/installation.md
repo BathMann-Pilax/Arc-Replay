@@ -155,46 +155,39 @@ journalctl -u arc-replay-camera -f
 
 Un Pi Zero 2 W n'a que du Wi-Fi 2,4 GHz : gardez-le à moins d'une quinzaine de mètres du serveur, et limitez-le à 1080p 30 i/s autour de 4 à 6 Mbit/s.
 
-### Caméra de cible sur le pas de tir
+### Caméra de cible sur le pas de tir (vue en direct)
 
-Pour voir la cible sur la mosaïque sans rien installer dans le coffre : une caméra HQ de Raspberry Pi (version à monture M12) avec un objectif M12 de 25 mm, sur un trépied à côté de l'archer. À 18 m, l'objectif voit 4,5 × 3,4 m ; on ne garde que la zone de la cible, lue en pleine définition sur le capteur de 12 Mpx (environ 1,1 mm par pixel). Au-delà de 18 m, la cible devient trop petite pour cet objectif.
+La cible est filmée depuis le pas de tir et affichée **en direct** sur l'écran (WebRTC, moins d'une seconde de latence), cadrée depuis la télécommande. Rien à installer dans le coffre de la cible. La détection d'impact est désactivée (reportée, voir [Nœud cible](noeud-cible.md)).
 
-1. Brancher la caméra HQ sur un Raspberry Pi 4 (nappe CSI), le poser sur un trépied stable, près de l'archer et presque dans l'axe de la cible.
-2. Déclarer la caméra côté serveur, avec le recadrage :
+Matériel : caméra HQ de Raspberry Pi (IMX477, 12 Mpx) et objectif de 12 mm, sur le port caméra (CSI) du Pi, posée sur un trépied stable à côté de l'archer, presque dans l'axe de la cible. À 18 m, le 12 mm voit environ 9,4 × 7 m : on zoome sur le capteur (×5 à ×6 pour cadrer la butte), en pleine définition pour garder le détail. 18 m est la distance maximale prévue.
+
+**Un seul Raspberry Pi 3 B+ peut tout faire** (serveur et caméra cible) :
+
+1. Raspberry Pi OS Lite 64 bits, puis le serveur : `sudo ./scripts/installer-serveur.sh --wifi` (point d'accès en 2,4 GHz sur le Pi 3 B+ : `BANDE=bg`, voir plus haut) et les images Docker précompilées.
+2. Dans `config/arc-replay.yml`, la caméra cible (déjà présente dans l'exemple) :
 
    ```yaml
    - id: cible
      nom: Cible
      type: reseau
-     recadrage: true
+     direct: true          # en direct sur l'écran
+     detection: false      # score désactivé
+     capteur: complet      # 4056x3040 à 10 i/s ; binne : 2028x1520 à 30 i/s
+     largeur: 1920
+     hauteur: 1080
+     debit: 4M
+     cadrage: {zoom_max: 8, pas_zoom: 1.25, pas_deplacement: 0.10}
    ```
 
-3. Installer le nœud : `sudo ./installer.sh camera cible 10.42.0.1`, puis dans `/etc/default/arc-replay-camera` :
+3. Le nœud, sur le même Pi : `sudo ./noeuds/installer.sh cible-directe 127.0.0.1`. Avec `127.0.0.1`, l'installeur ne touche pas à la synchronisation d'heure (c'est le serveur lui-même) et n'installe pas OpenCV.
+4. Mise au point à la main : zoomer fort depuis la télécommande pour juger de la netteté, tourner l'objectif, puis le bloquer.
+5. Cadrage : télécommande, section **Caméra cible** (voir [Utilisation](utilisation.md#caméra-cible)). Il est enregistré sur le Pi et restauré au redémarrage.
 
-   ```bash
-   ARC_LARGEUR=1280
-   ARC_HAUTEUR=720
-   ARC_FPS=10            # pleine définition : 10 images/s au plus sur la caméra HQ
-   ARC_OPTIONS="--recadrage --capteur-complet"
-   ```
+**Alimentation : 5,1 V / 2,5 A (alimentation officielle du Pi 3 B+).** Avec un chargeur de téléphone 5 V / 2 A, des sous-tensions ont été observées : le Pi ralentit puis l'image saccade. Vérification : `vcgencmd get_throttled` doit répondre `throttled=0x0`.
 
-   et `sudo systemctl restart arc-replay-camera`.
-4. Faire la mise au point à la main : tourner l'objectif en regardant l'image (zoom ×4 pour bien juger), puis le bloquer avec sa bague.
-5. Dans la télécommande, section « Affichage », bouton **Cadrage de la cible** : Zoom + / − et flèches pour cadrer le blason. Un zoom de ×3 environ cadre la cible et son entourage à 18 m. Le réglage est appliqué en moins d'une seconde et gardé d'une séance à l'autre.
+Contraintes du Pi 3 B+ : un seul encodeur H.264 matériel, utilisé par la caméra cible ; aucun transcodage côté serveur. Les webcams de l'archer ajoutées plus tard devront sortir du H.264 elles-mêmes (`format_entree: h264`, `encodeur: copy`).
 
-10 images par seconde suffisent pour une cible : on y voit arriver les flèches et le groupement.
-
-**Deux façons d'utiliser cette caméra**, au choix (un seul programme peut piloter la caméra) :
-
-| | Nœud caméra (ci-dessus) | Nœud cible avec `zoom_numerique` |
-|---|---|---|
-| Cadrage | Réglable depuis la télécommande, à tout moment | Zoom centré fixe, dans `cible.yml` |
-| Score | Saisi dans la télécommande | Détection automatique, après calibration |
-| Changer le cadrage | Immédiat | Recalibrer |
-
-Pour la détection automatique depuis le pas de tir, voir `zoom_numerique` dans [Nœud cible](noeud-cible.md). Elle reste à valider sur une vraie cible : vue de face, la flèche plantée pointe vers la caméra et son tube peut masquer le point d'impact ; vérifiez sur les photos annotées que le point retenu est bien l'entrée dans le blason (réglage `extremite`).
-
-Sur un Pi 3B+ qui fait aussi serveur, préférez le nœud cible en 720p (`cible.yml`) : `--capteur-complet` y est trop lourd.
+Si le serveur est une autre machine : `sudo ./noeuds/installer.sh cible-directe 10.42.0.1` sur le Pi de la caméra.
 
 ## 4. Écran
 

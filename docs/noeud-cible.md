@@ -1,8 +1,30 @@
 # Nœud cible
 
-Le nœud cible est un Raspberry Pi 4 placé dans le coffre d'éclairage de la cible. Il envoie la vue de la cible à la mosaïque et, à chaque flèche, localise l'impact et l'envoie au serveur.
+Le nœud cible envoie la vue de la cible à l'écran. Il a deux modes, choisis par `detection` dans `cible.yml` :
 
-> **Statut : prototype.** La détection a été testée sur des images de synthèse. Elle doit être réglée sur votre cible réelle (angle, éclairage, couleur des tubes).
+| Mode | Usage | Installation |
+|---|---|---|
+| **Cible directe** (`detection: false`, par défaut) | Caméra HQ au pas de tir ; vue **en direct** sur l'écran, cadrée depuis la télécommande. Pas de score. | `sudo ./installer.sh cible-directe <serveur>` |
+| **Détection** (`detection: true`) | Caméra dans le coffre de la cible ; localise chaque impact et calcule le score. **Reporté.** | `sudo ./installer.sh cible <serveur>` |
+
+## Mode « cible directe » (sans détection)
+
+- picamera2 → encodeur H.264 matériel → RTSP vers MediaMTX ; aucune analyse d'image, pas d'OpenCV.
+- Capteur `complet` (4056 × 3040 à 10 i/s, par défaut : la cible est statique et le détail reste net en zoomant) ou `binne` (2028 × 1520 à 30 i/s). Image envoyée en 1920 × 1080, image clé chaque seconde, en-têtes SPS/PPS répétés (le WebRTC démarre vite).
+- Cadrage numérique dans le capteur (ScalerCrop) : zone 16:9 définie par son centre et un zoom de 1 à `zoom_max`, pas ×1,25, déplacement de 10 % de la largeur visible, toujours dans le capteur. Appliqué sans couper le flux.
+- Le nœud ouvre lui-même un canal WebSocket vers le serveur (`/api/noeud/ws`) : il y reçoit ses réglages (caméra « cible » de `config/arc-replay.yml`) et les commandes de cadrage, et renvoie le cadrage effectif. Le serveur n'a pas besoin de connaître son adresse.
+- Le cadrage est enregistré dans `/var/lib/arc-replay/cadrage-cible.json` et restauré au démarrage.
+- Si le serveur ne répond pas au démarrage, le nœud attend 20 s puis démarre avec les valeurs de secours de `cible.yml`.
+
+Installation sur le Pi qui fait aussi serveur (Pi 3 B+) : `sudo ./noeuds/installer.sh cible-directe 127.0.0.1`, voir [Installation](installation.md#caméra-de-cible-sur-le-pas-de-tir-vue-en-direct). Alimentation 5,1 V / 2,5 A obligatoire (`vcgencmd get_throttled` → `0x0`).
+
+Suivi : `journalctl -u arc-replay-cible -f` (connexion au serveur, cadrage restauré, commandes reçues).
+
+## Mode détection (reporté)
+
+Le nœud est alors un Raspberry Pi 4 placé dans le coffre d'éclairage de la cible. Il envoie la vue de la cible à la mosaïque et, à chaque flèche, localise l'impact et l'envoie au serveur.
+
+> **Statut : prototype, reporté.** La détection a été testée sur des images de synthèse. Elle doit être réglée sur votre cible réelle (angle, éclairage, couleur des tubes). Des outils pour une caméra face au blason sont rangés dans `noeuds/cible/outils/` (non utilisés par le service).
 
 ## Fonctionnement
 

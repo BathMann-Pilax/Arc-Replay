@@ -134,8 +134,9 @@ def test_etat_renvoye_au_serveur():
 
 
 class FauxPicam:
-    def __init__(self, maxi):
+    def __init__(self, maxi, controles=None):
         self.camera_properties = {"ScalerCropMaximum": maxi}
+        self.camera_controls = controles or {}
         self.sensor_resolution = (4056, 3040)
 
 
@@ -144,6 +145,9 @@ def test_zone_maximale_avant_configuration():
     assert zone_maximale(FauxPicam((0, 0, 0, 0))) == HQ
     assert zone_maximale(FauxPicam(None)) == HQ
     assert zone_maximale(FauxPicam((8, 16, 4040, 3008))) == (8, 16, 4040, 3008)
+    # Propriété invalide mais bornes du contrôle ScalerCrop connues
+    controles = {"ScalerCrop": ((0, 0, 64, 64), (0, 2, 4056, 3036), (0, 0, 4056, 3040))}
+    assert zone_maximale(FauxPicam((0, 0, 0, 0), controles)) == (0, 2, 4056, 3036)
 
 
 # --- canal -------------------------------------------------------------------

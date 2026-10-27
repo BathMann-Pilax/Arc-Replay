@@ -55,12 +55,20 @@ def zone_maximale(picam) -> Rectangle:
     Avant la configuration, picamera2 renvoie (0, 0, 0, 0) : on se rabat alors
     sur la taille du capteur.
     """
-    zone = picam.camera_properties.get("ScalerCropMaximum") or (0, 0, 0, 0)
-    x, y, l, h = (int(v) for v in zone)
-    if l <= 0 or h <= 0:
-        l, h = picam.sensor_resolution
-        x = y = 0
-    return x, y, l, h
+    candidats = [picam.camera_properties.get("ScalerCropMaximum")]
+    try:
+        candidats.append(picam.camera_controls["ScalerCrop"][1])  # (min, max, défaut)
+    except (AttributeError, KeyError, IndexError, TypeError):
+        pass
+    for zone in candidats:
+        try:
+            x, y, l, h = (int(v) for v in zone)
+        except (TypeError, ValueError):
+            continue
+        if l > 0 and h > 0:
+            return x, y, l, h
+    l, h = picam.sensor_resolution
+    return 0, 0, int(l), int(h)
 
 
 class Cadrage:

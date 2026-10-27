@@ -24,11 +24,12 @@ services:
       - "c 226:* rmw"   # GPU pour l'encodage VAAPI (/dev/dri)
     ports:
       - "8554:8554"     # RTSP : les nœuds caméra (Pi Zero, Pi 4) publient ici
-      # WHIP/WebRTC : ICE des téléphones (page /camera). Le TCP sert au POST,
-      # l'UDP au flux vidéo ; sans cette publication, l'ICE est injoignable
-      # depuis le Wi-Fi du serveur et la caméra d'un téléphone ne démarre pas.
+      # WebRTC (vue cible en direct, caméra d'un téléphone) : la vidéo passe par
+      # le port ICE 8189, en UDP (et TCP en secours). Le signalement (offre SDP)
+      # passe par nginx (/webrtc/) ; 8889 reste publié pour les tests directs.
       - "8889:8889"
-      - "8889:8889/udp"
+      - "8189:8189/udp"
+      - "8189:8189"
 
   backend:
     <<: *commun

@@ -27,3 +27,20 @@ def test_capteur_decale_et_valeurs_paires():
     x, y, l, h = rectangle((16, 8, 4000, 3000), 4 / 3, 3, 0.2, 0.7)
     assert x >= 16 and y >= 8 and x + l <= 4016 and y + h <= 3008
     assert all(v % 2 == 0 for v in (x, y, l, h))
+
+
+# --- zoom numérique fixe (streamer.calculer_recadrage, nœud cible) ----------
+
+from streamer import calculer_recadrage  # noqa: E402
+
+
+def test_zoom_fixe_centre_et_pair():
+    x, y, l, h = calculer_recadrage(HQ, 3)
+    assert (l, h) == (1352, 1012)
+    assert abs(x + l / 2 - 2028) <= 1 and abs(y + h / 2 - 1520) <= 1
+    assert l % 2 == 0 and h % 2 == 0
+
+
+def test_zoom_fixe_inutile_sous_1():
+    assert calculer_recadrage(HQ, 1) == HQ
+    assert calculer_recadrage(HQ, 0.5) == HQ

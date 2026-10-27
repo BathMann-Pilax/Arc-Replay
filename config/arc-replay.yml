@@ -41,29 +41,25 @@ blason:
 #   usb    : caméra branchée sur le serveur (lue et encodée par MediaMTX via ffmpeg)
 #   reseau : nœud Raspberry Pi qui publie lui-même son flux vers le serveur
 #   rtsp   : caméra IP du commerce que le serveur va chercher
+# Un téléphone peut s'ajouter à tout moment depuis la page /camera, sans rien
+# déclarer ici : il encode lui-même, le serveur ne fait que relayer.
+#
+# Sur Raspberry Pi 3B+ : 2 caméras USB en 720p maximum (l'encodeur matériel
+# du GPU, partagé avec le nœud cible, tient ~1080p30 au total), encodeur
+# v4l2m2m, débits 2-3 M (le Wi-Fi 2,4 GHz du point d'accès est la limite).
+# Pas de caméra 100 i/s sur cette machine : l'encodeur matériel et le CPU
+# ne suivent pas.
 cameras:
   - id: profil
     nom: Profil
     type: usb
     peripherique: /dev/v4l/by-id/usb-REMPLACER-video-index0
-    format_entree: mjpeg    # mjpeg | h264 | yuyv422
+    format_entree: mjpeg    # mjpeg | h264 | yuyv422 (mjpeg seulement sur Pi 3B+)
     largeur: 1280
     hauteur: 720
     fps: 30
-    encodeur: libx264       # libx264 | copy (caméra H.264) | vaapi (Intel N100) | v4l2m2m (Pi 4)
-    debit: 4M
-
-  - id: face
-    nom: Face (ralenti)
-    type: usb
-    peripherique: /dev/v4l/by-id/usb-REMPLACER-video-index0
-    format_entree: mjpeg
-    largeur: 1280
-    hauteur: 720
-    fps: 100                # 100 fps en salle (éclairage 50 Hz), 120 fps en extérieur
-    encodeur: libx264
-    debit: 10M
-    ralenti: true
+    encodeur: v4l2m2m       # encodeur matériel du Pi (3B+, 4) | libx264 | vaapi | copy
+    debit: 2.5M
 
   - id: arriere
     nom: Arrière
@@ -73,9 +69,9 @@ cameras:
     largeur: 1280
     hauteur: 720
     fps: 30
-    encodeur: libx264
-    debit: 4M
+    encodeur: v4l2m2m
+    debit: 2.5M
 
   - id: cible
     nom: Cible
-    type: reseau            # publié par le Pi 4 du coffre de cible (noeuds/cible)
+    type: reseau            # nœud cible sur ce même Pi (noeuds/cible), caméra HQ + 25 mm

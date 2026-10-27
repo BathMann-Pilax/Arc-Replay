@@ -2,11 +2,21 @@
 serveur: 10.42.0.1          # adresse du serveur (point d'accès Wi-Fi du Pi 5)
 chemin: cible               # = id de la caméra dans config/arc-replay.yml
 
-# Flux vidéo envoyé à la mosaïque
-largeur: 1920
-hauteur: 1080
+# Flux vidéo envoyé à la mosaïque.
+# Sur Pi 3B+ (encodeur matériel partagé avec les caméras USB du serveur),
+# rester en 720p : 1920x1080 consomme à lui seul le budget H.264 du GPU.
+largeur: 1280
+hauteur: 720
 fps: 30
-debit: 6000000
+debit: 3000000
+
+# Zoom numérique sur le capteur (1 = aucun). La caméra HQ (IMX477, 12 MP)
+# avec le téléobjectif 25 mm placée au pas de tir à 18 m ne cadre le blason
+# que sur ~27 % de l'image ; zoom_numerique: 3 le fait passer à ~80 %,
+# ce qui remplit la vue et surtout donne à la détection d'impact des pixels
+# assez fins (lores 640x480 → ~2,4 mm/pixel sur le blason au lieu de ~7).
+# La calibration (calibrer.py) applique le même zoom : à refaire si changé.
+zoom_numerique: 3
 
 # Analyse : images basse définition en niveaux de gris
 lores: [640, 480]           # la calibration est faite à cette résolution

@@ -26,22 +26,57 @@ import time
 log = logging.getLogger("arc.camera")
 
 
+def calculer_recadrage(maximum: tuple[int, int, int, int],
+                       zoom: float) -> tuple[int, int, int, int]:
+    """Recadrage centré du capteur (ScalerCrop) réalisant un zoom numérique.
+
+    `maximum` : zone maximale visible du capteur, donnée par picamera2
+    (camera_properties["ScalerCropMaximum"]). Le recadrage garde les
+    proportions du capteur : le flux principal (16:9) en prend la partie
+    centrale, comme d'habitude.
+    """
+    if zoom <= 1:
+        return tuple(maximum)
+    mx, my, mw, mh = maximum
+    # tailles paires : exigées par l'ISP
+    cw = max(2, round(mw / zoom)) & ~1
+    ch = max(2, round(mh / zoom)) & ~1
+    return (mx + (mw - cw) // 2, my + (mh - ch) // 2, cw, ch)
+
+
+def recadrage_zoom(picam, zoom: float | None) -> tuple[int, int, int, int] | None:
+    """ScalerCrop à passer à la configuration pour le zoom voulu (None si inutile)."""
+    if not zoom or zoom <= 1:
+        return None
+    return calculer_recadrage(tuple(picam.camera_properties["ScalerCropMaximum"]), zoom)
+
+
 def demarrer_flux(serveur: str, chemin: str, largeur: int, hauteur: int, fps: int,
-                  debit: int, lores: tuple[int, int] | None = None, capteur_complet: bool = False):
+                  debit: int, lores: tuple[int, int] | None = None, capteur_complet: bool = False,
+                  zoom: float | None = None):
     """Démarre la caméra et la publication RTSP. Renvoie l'objet Picamera2.
 
     `lores` ajoute un second flux basse définition en niveaux de gris,
     lisible avec picam.capture_array("lores") pour l'analyse d'image.
     `capteur_complet` lit le capteur sans regroupement de pixels : un recadrage
     fort reste net, mais la cadence est limitée (10 i/s sur la caméra HQ).
+    `zoom` (> 1) recadre le capteur sur sa partie centrale, une fois pour toutes :
+    utile quand la cible n'occupe qu'un petit coin de l'image (téléobjectif,
+    cible éloignée). La calibration (calibrer.py) doit utiliser le même zoom.
+    Pour un cadrage réglable depuis la télécommande, voir plutôt recadrage.py.
     """
     from picamera2 import Picamera2
     from picamera2.encoders import H264Encoder
     from picamera2.outputs import FfmpegOutput
 
     picam = Picamera2()
+    controles: dict = {"FrameRate": fps}
+    recadrage = recadrage_zoom(picam, zoom)
+    if recadrage:
+        controles["ScalerCrop"] = recadrage
+        log.info("zoom numérique x%.1f : recadrage %s", zoom, recadrage)
     flux = {"size": (largeur, hauteur), "format": "YUV420"}
-    options = {"main": flux, "controls": {"FrameRate": fps}}
+    options = {"main": flux, "controls": controles}
     if lores:
         options["lores"] = {"size": lores, "format": "YUV420"}
     if capteur_complet:

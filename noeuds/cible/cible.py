@@ -171,6 +171,7 @@ def main() -> int:
         conf["serveur"], conf.get("chemin", "cible"),
         conf.get("largeur", 1920), conf.get("hauteur", 1080), conf.get("fps", 30),
         conf.get("debit", 6_000_000), lores=tuple(conf["lores"]),
+        zoom=conf.get("zoom_numerique"),
     )
     threading.Thread(target=noeud.boucle_capture, args=(picam,), daemon=True).start()
     threading.Thread(target=noeud.boucle_serveur, daemon=True).start()

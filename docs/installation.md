@@ -5,9 +5,10 @@
 | Élément | Conseillé | Remarques |
 |---|---|---|
 | Serveur | Raspberry Pi 5 (4 ou 8 Go) + SSD NVMe | Ou mini-PC Intel N100, plus à l'aise au-delà de 3 caméras USB et pour le 100 i/s. Évitez la carte SD : l'enregistrement continu l'use vite. |
+| Serveur + cible sur un seul Pi 3B+ | Possible, en version réduite | 2 caméras USB en 720p maximum, encodeur `v4l2m2m`, pas de ralenti 100 i/s, point d'accès Wi-Fi en 2,4 GHz (`BANDE=bg`), nœud cible en 720p. OS 64 bits Lite, `gpu_mem=196`, zram, images Docker précompilées (ne pas faire `--build` sur le Pi). |
 | Caméras autour de l'archer | Webcams USB UVC, MJPEG 720p ou 1080p | Une caméra qui sort du H.264 soulage le serveur (`encodeur: copy`). |
 | Caméra ralenti | Webcam USB 100/120 i/s en 720p | 100 i/s en salle (éclairage 50 Hz), 120 i/s en extérieur. |
-| Vue de la cible (jusqu'à 18 m) | Raspberry Pi 4 + caméra HQ (version M12) + objectif M12 25 mm | Sur un trépied au pas de tir : rien dans le coffre de la cible. Voir « Caméra de cible sur le pas de tir ». |
+| Vue de la cible (jusqu'à 18 m) | Raspberry Pi 4 (ou le Pi 3B+ du serveur) + caméra HQ (version M12) + objectif M12 25 mm | Sur un trépied au pas de tir : rien dans le coffre de la cible. Voir « Caméra de cible sur le pas de tir ». |
 | Nœud cible (option) | Raspberry Pi 4 + Camera Module 3 Wide | Dans le coffre d'éclairage, pour la détection automatique du score. |
 | Nœud caméra Wi-Fi | Pi Zero 2 W + Camera Module 3 | Pour une vue éloignée sans câble. |
 | Micro (optionnel) | Micro USB | Détection automatique du lâcher. |
@@ -36,13 +37,17 @@ Le script :
 
 - installe la règle udev qui monte automatiquement une clé USB dans `/media/arc-usb` ;
 - fait du serveur la référence d'heure du réseau (chrony), pour les nœuds Pi ;
-- avec `--wifi`, crée le point d'accès 5 GHz `ArcReplay` (adresse du serveur : `10.42.0.1`).
+- avec `--wifi`, crée le point d'accès `ArcReplay` (adresse du serveur : `10.42.0.1`), en 5 GHz par défaut.
 
 Nom et mot de passe du Wi-Fi :
 
 ```bash
 sudo SSID=ClubArc MOT_DE_PASSE=un-vrai-mot-de-passe ./scripts/point-acces-wifi.sh
 ```
+
+> Sur un Raspberry Pi 3B+ (pas de 5 GHz) : `sudo BANDE=bg ./scripts/point-acces-wifi.sh`.
+> Le 2,4 GHz offre ~25-35 Mbit/s réels : gardez les débits des flux à 2-3 Mbit/s.
+> Vous pouvez forcer un canal avec `CANAL=6` (le défaut est 36 en 5 GHz, 1 en 2,4 GHz).
 
 > Si le serveur est relié en Ethernet au réseau du club, le point d'accès n'est pas obligatoire : utilisez simplement l'adresse IP du serveur sur ce réseau, et passez-la aux nœuds (`installer.sh … <adresse>`).
 
@@ -173,7 +178,19 @@ Pour voir la cible sur la mosaïque sans rien installer dans le coffre : une cam
 4. Faire la mise au point à la main : tourner l'objectif en regardant l'image (zoom ×4 pour bien juger), puis le bloquer avec sa bague.
 5. Dans la télécommande, section « Affichage », bouton **Cadrage de la cible** : Zoom + / − et flèches pour cadrer le blason. Un zoom de ×3 environ cadre la cible et son entourage à 18 m. Le réglage est appliqué en moins d'une seconde et gardé d'une séance à l'autre.
 
-10 images par seconde suffisent pour une cible : on y voit arriver les flèches et le groupement. La détection automatique du score reste prévue pour une caméra dans le coffre de la cible (« Nœud cible ») : vue depuis le pas de tir, la flèche plantée pointe vers la caméra et masque son point d'impact. Sans nœud cible, le score se saisit dans la télécommande.
+10 images par seconde suffisent pour une cible : on y voit arriver les flèches et le groupement.
+
+**Deux façons d'utiliser cette caméra**, au choix (un seul programme peut piloter la caméra) :
+
+| | Nœud caméra (ci-dessus) | Nœud cible avec `zoom_numerique` |
+|---|---|---|
+| Cadrage | Réglable depuis la télécommande, à tout moment | Zoom centré fixe, dans `cible.yml` |
+| Score | Saisi dans la télécommande | Détection automatique, après calibration |
+| Changer le cadrage | Immédiat | Recalibrer |
+
+Pour la détection automatique depuis le pas de tir, voir `zoom_numerique` dans [Nœud cible](noeud-cible.md). Elle reste à valider sur une vraie cible : vue de face, la flèche plantée pointe vers la caméra et son tube peut masquer le point d'impact ; vérifiez sur les photos annotées que le point retenu est bien l'entrée dans le blason (réglage `extremite`).
+
+Sur un Pi 3B+ qui fait aussi serveur, préférez le nœud cible en 720p (`cible.yml`) : `--capteur-complet` y est trop lourd.
 
 ## 4. Écran
 

@@ -63,6 +63,12 @@ journalctl -u arc-replay-cible -f
 | `aire_min` | `30` | Taille minimale d'une zone, en pixels. |
 | `attente_apres_lacher_s` | `2.5` | Délai avant la photo « après » : temps de vol et vibration du tube. |
 | `analyse_fps` | `4` | Fréquence des images d'analyse. |
+| `zoom_numerique` | `1` | Zoom sur le capteur (> 1). Indispensable quand la cible n'occupe qu'une petite part de l'image : caméra au pas de tir avec un téléobjectif (25 mm à 18 m : le blason couvre ~27 % du cadre ; `zoom_numerique: 3` le porte à ~80 % et rend la détection fiable). La calibration se fait avec le même zoom : à refaire si vous le changez. |
+
+> Précision de la détection : elle se fait sur le flux `lores`. Sans zoom, 640 × 480
+> à 18 m avec le 25 mm donne ~7 mm/pixel sur le blason — trop grossier pour un
+> tube de flèche. Avec `zoom_numerique: 3`, on retombe à ~2,4 mm/pixel. Si vous
+> rapprochez la caméra (coffre de cible, objectif grand angle), le zoom est inutile.
 
 Méthode de réglage de `extremite` : tirez quelques flèches, puis ouvrez les photos annotées `V01_F1_impact.jpg` (dans le dossier de la flèche, ou sur la clé après export). Le contour rouge entoure la flèche détectée, le rond vert marque le point retenu : il doit être là où le tube entre dans le blason. Sinon, changez `extremite` et relancez le service.
 

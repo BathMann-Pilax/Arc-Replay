@@ -23,7 +23,10 @@ from pathlib import Path
 import cv2
 import yaml
 
-import detection
+# streamer.py vit dans noeuds/camera (ou à côté de ce fichier une fois installé)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "camera"))
+import detection  # noqa: E402
+from streamer import recadrage_zoom  # noqa: E402
 
 
 def capture(conf: dict, sortie: Path) -> None:
@@ -31,9 +34,14 @@ def capture(conf: dict, sortie: Path) -> None:
 
     largeur, hauteur = conf["lores"]
     picam = Picamera2()
+    controles: dict = {}
+    recadrage = recadrage_zoom(picam, conf.get("zoom_numerique"))
+    if recadrage:
+        controles["ScalerCrop"] = recadrage  # même cadrage que le service
     picam.configure(picam.create_still_configuration(
         main={"size": (conf.get("largeur", 1920), conf.get("hauteur", 1080))},
         lores={"size": (largeur, hauteur), "format": "YUV420"},
+        controls=controles,
     ))
     picam.start()
     import time

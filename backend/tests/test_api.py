@@ -1,6 +1,7 @@
 """Tests de bout en bout du back-end, sans MediaMTX (extraction simulée)."""
 
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def client(tmp_path, monkeypatch):
         "lacher": {"anti_rebond_s": 0.5},
         "cameras": [
             {"id": "profil", "nom": "Profil", "type": "reseau"},
-            {"id": "cible", "nom": "Cible", "type": "reseau", "recadrage": True},
+            {"id": "cible", "nom": "Cible", "type": "reseau", "direct": True, "cadrage": {}},
         ],
     }))
     monkeypatch.setenv("ARC_CONFIG", str(fichier))
@@ -379,24 +380,71 @@ def test_apercu_camera(client, monkeypatch):
     assert client.get("/api/apercu/profil").status_code == 503
 
 
-def test_recadrage(client):
-    assert client.get("/api/recadrage/cible").json() == {"zoom": 1.0, "x": 0.5, "y": 0.5}
-    r = client.post("/api/commande", json={"action": "recadrage", "camera": "cible", "zoom": 4})
-    assert r.status_code == 200
-    client.post("/api/commande", json={"action": "recadrage", "camera": "cible", "dx": 1, "dy": -0.4})
-    rc = client.get("/api/recadrage/cible").json()
-    assert rc["zoom"] == 4 and rc["x"] == 0.75 and rc["y"] == 0.4
-    assert client.get("/api/etat").json()["recadrages"]["cible"] == rc
-    # Caméra non prévue pour le recadrage
-    r = client.post("/api/commande", json={"action": "recadrage", "camera": "profil", "zoom": 2})
-    assert r.status_code == 400
-    client.post("/api/commande", json={"action": "recadrage", "camera": "cible", "reinitialiser": True})
-    assert client.get("/api/recadrage/cible").json()["zoom"] == 1.0
+def test_cadrage_relaye_au_noeud(client):
+    # Pas de nœud connecté : la télécommande reçoit une erreur claire
+    assert client.post("/api/cadrage/cible", json={"action": "zoomer", "pas": 1}).status_code == 503
+    assert client.post("/api/cadrage/profil", json={"action": "reinitialiser"}).status_code == 404
+
+    with client.websocket_connect("/api/noeud/ws?camera=cible") as noeud:
+        conf = noeud.receive_json()
+        assert conf["type"] == "config"
+        assert conf["camera"]["capteur"] == "complet" and conf["camera"]["fps"] is None
+        assert conf["camera"]["cadrage"] == {"zoom_max": 8, "pas_zoom": 1.25, "pas_deplacement": 0.1}
+        noeud.send_json({"type": "cadrage", "cadrage": {"zoom": 1.0}})
+        e = attendre(client, lambda e: e["cadrages"]["cible"].get("zoom") == 1.0)
+        assert e["cadrages"]["cible"]["connecte"]
+
+        def commander(corps, resultat):
+            resultat["r"] = client.post("/api/cadrage/cible", json=corps)
+
+        # Zoom + : la commande arrive au nœud, son cadrage effectif revient à tous
+        resultat = {}
+        fil = threading.Thread(target=commander, args=({"action": "zoomer", "pas": 1}, resultat))
+        fil.start()
+        cmd = noeud.receive_json()
+        assert cmd["type"] == "commande" and cmd["commande"]["action"] == "zoomer" and cmd["commande"]["pas"] == 1
+        noeud.send_json({"type": "reponse", "id": cmd["id"], "cadrage": {"zoom": 1.25}})
+        fil.join(5)
+        assert resultat["r"].status_code == 200 and resultat["r"].json() == {"zoom": 1.25}
+        assert client.get("/api/cadrage/cible").json() == {"connecte": True, "cadrage": {"zoom": 1.25}}
+        assert client.get("/api/etat").json()["cadrages"]["cible"]["zoom"] == 1.25
+
+        # Le nœud refuse : erreur 400 pour la télécommande
+        resultat = {}
+        fil = threading.Thread(target=commander, args=({"action": "deplacer", "dx": 1}, resultat))
+        fil.start()
+        cmd = noeud.receive_json()
+        assert cmd["commande"] == {"action": "deplacer", "dx": 1, "dy": 0}
+        noeud.send_json({"type": "reponse", "id": cmd["id"], "erreur": "caméra arrêtée"})
+        fil.join(5)
+        assert resultat["r"].status_code == 400
+
+    attendre(client, lambda e: not e["cadrages"]["cible"]["connecte"])
+    assert client.post("/api/cadrage/cible", json={"action": "reinitialiser"}).status_code == 503
+
+
+def test_noeud_inconnu_refuse(client):
+    with client.websocket_connect("/api/noeud/ws?camera=inconnue") as noeud:
+        with pytest.raises(Exception):
+            noeud.receive_json()
+
+
+def test_score_masque_sans_detection(client):
+    main.serveur.config.cameras[1].detection = False
+    e = client.get("/api/etat").json()
+    assert e["score_actif"] is False and "groupements" not in e and "blason" not in e
+    assert client.post("/api/impact", json={"x_mm": 1, "y_mm": 2}).status_code == 404
+    assert client.post("/api/commande", json={"action": "score", "valeur": 9}).status_code == 404
+    # Le reste fonctionne : tir, rejeu
+    assert client.post("/api/lacher", json={}).status_code == 200
+    vues = {c["id"]: c for c in e["cameras"]}
+    assert vues["cible"]["direct"] and not vues["profil"]["direct"]
 
 
 def test_wifi_et_adresse_publique(client):
     e = client.get("/api/etat").json()
     assert e["wifi"] == {"ssid": "ArcReplay", "mot_de_passe": "arc;2026"}
     assert e["adresse_publique"] == "http://10.42.0.1"
-    recadrables = {c["id"]: c["recadrage"] for c in e["cameras"]}
-    assert recadrables["cible"] and not recadrables["profil"]
+    cadrables = {c["id"]: c["cadrage"] for c in e["cameras"]}
+    assert cadrables["cible"]["pas_zoom"] == 1.25 and cadrables["profil"] is None
+    assert e["score_actif"] is True

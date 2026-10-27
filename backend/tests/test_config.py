@@ -59,3 +59,20 @@ def test_conf_chemins():
     }
     usb = conf_chemin(cfg.Camera(id="c", nom="C", type="usb", peripherique="/dev/video0"))
     assert usb["source"] == "publisher" and usb["runOnInitRestart"] is True
+
+
+def test_camera_cible_directe():
+    cam = cfg.Camera.model_validate({"id": "cible", "nom": "Cible", "type": "reseau", "direct": True,
+                                     "detection": False, "cadrage": {"zoom_max": 6},
+                                     "largeur": 1920, "hauteur": 1080, "debit": "2500k"})
+    n = cam.config_noeud()
+    assert n == {"capteur": "complet", "largeur": 1920, "hauteur": 1080, "fps": None,
+                 "debit": 2_500_000, "cadrage": {"zoom_max": 6, "pas_zoom": 1.25, "pas_deplacement": 0.1}}
+    assert cfg.Camera.model_validate({"id": "c", "nom": "C", "type": "reseau", "fps": 15}).config_noeud()["fps"] == 15
+    # Ancien nom « recadrage: true » : cadrage par défaut
+    assert cfg.Camera.model_validate({"id": "c", "nom": "C", "type": "reseau", "recadrage": True}).cadrage
+    with pytest.raises(ValidationError):
+        cfg.Camera.model_validate({"id": "u", "nom": "U", "type": "usb", "peripherique": "/dev/x", "cadrage": {}})
+    c = cfg.Config.model_validate({"cameras": [cam.model_dump()]})
+    assert c.score_actif is False
+    assert cfg.Config.model_validate({"cameras": []}).score_actif is True

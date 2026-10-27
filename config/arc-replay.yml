@@ -74,4 +74,14 @@ cameras:
 
   - id: cible
     nom: Cible
-    type: reseau            # nœud cible sur ce même Pi (noeuds/cible), caméra HQ + 25 mm
+    type: reseau            # nœud cible sur ce même Pi (noeuds/cible), caméra HQ + objectif 12 mm
+    direct: true            # affichée en direct (WebRTC, < 1 s), pas en différé
+    detection: false        # détection d'impact et score désactivés (reportés)
+    capteur: complet        # complet : 4056x3040 à 10 i/s (net en zoomant) ; binne : 2028x1520 à 30 i/s
+    largeur: 1920           # image envoyée (16:9)
+    hauteur: 1080
+    debit: 4M
+    cadrage:                # réglé depuis la télécommande, mémorisé sur le Pi
+      zoom_max: 8           # zoom maximal (1 = plus grande zone 16:9 du capteur)
+      pas_zoom: 1.25        # chaque « zoom + » multiplie le zoom par 1,25
+      pas_deplacement: 0.10 # chaque flèche déplace de 10 % de la largeur visible

@@ -46,7 +46,6 @@ def etat_initial(config: Config, heure: Optional[datetime] = None) -> dict:
         "grille": False,
         "reperes": {},
         "afficher_qr": True,
-        "recadrages": {},  # id caméra -> {zoom, x, y} (centre de la zone, 0 à 1)
         "qr_type": "telecommande",  # ou "camera" : lequel des deux QR codes l'écran affiche
         "fleches": [],
         "volees_archivees": [],  # volées dont les fichiers ont quitté le serveur
@@ -337,32 +336,3 @@ def contenu_csv_groupements(etat: dict) -> str:
         f"{nom};{d['n']};{d['centre_x_mm']:.1f};{d['centre_y_mm']:.1f};{d['dispersion_mm']:.1f}\n"
         for nom, d in lignes
     )
-
-
-RECADRAGE_DEFAUT = {"zoom": 1.0, "x": 0.5, "y": 0.5}
-
-
-def recadrer(actuel: Optional[dict], zoom_max: float, *, zoom=None, x=None, y=None,
-             dx=None, dy=None, reinitialiser: bool = False) -> dict:
-    """Nouveau recadrage d'une caméra.
-
-    `x`, `y` : centre de la zone gardée, en fraction de l'image complète.
-    `dx`, `dy` : déplacement en fraction de la zone gardée (0.1 = un dixième de l'écran).
-    Le centre est borné pour que la zone reste dans l'image.
-    """
-    r = dict(RECADRAGE_DEFAUT if reinitialiser or not actuel else actuel)
-    if zoom is not None:
-        r["zoom"] = min(float(zoom_max), max(1.0, float(zoom)))
-    if x is not None:
-        r["x"] = float(x)
-    if y is not None:
-        r["y"] = float(y)
-    if dx:
-        r["x"] += float(dx) / r["zoom"]
-    if dy:
-        r["y"] += float(dy) / r["zoom"]
-    demi = 0.5 / r["zoom"]
-    r["x"] = round(min(1 - demi, max(demi, r["x"])), 4)
-    r["y"] = round(min(1 - demi, max(demi, r["y"])), 4)
-    r["zoom"] = round(r["zoom"], 3)
-    return r

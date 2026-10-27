@@ -93,9 +93,20 @@ L'ordre de la liste est l'ordre par défaut de la mosaïque ; il se change ensui
 
 C'est le nœud qui publie vers `rtsp://<serveur>:8554/<id>`. L'`id` doit être celui passé à `installer.sh`.
 
-| Champ | Rôle |
-|---|---|
-| `recadrage: true` | Le cadrage du nœud se règle depuis la télécommande (zoom et déplacement), voir [Caméra de cible sur le pas de tir](installation.md#caméra-de-cible-sur-le-pas-de-tir). |
+| Champ | Défaut | Rôle |
+|---|---|---|
+| `direct` | `false` | Vue affichée **en direct** sur l'écran (WebRTC, latence inférieure à 1 s) au lieu du différé. Pour la vue de la cible. Repli automatique sur le HLS au bord du direct si le WebRTC échoue. |
+| `detection` | absent | `false` sur la caméra cible : détection d'impact et score désactivés partout (routes, état, télécommande, écran). |
+| `cadrage` | absent | Présent : le cadrage se règle depuis la télécommande (section « Caméra cible »). Sous-clés ci-dessous. `recadrage: true` (ancien nom) équivaut à un bloc vide. |
+| `cadrage.zoom_max` | `8` | Zoom maximal ; zoom 1 = plus grande zone 16:9 du capteur. |
+| `cadrage.pas_zoom` | `1.25` | Chaque « zoom + » multiplie le zoom par ce pas. |
+| `cadrage.pas_deplacement` | `0.10` | Chaque flèche déplace la zone de 10 % de sa largeur visible. |
+| `capteur` | `complet` | `complet` : pleine définition 4056 × 3040 (caméra HQ) à 10 i/s, net même en zoomant fort ; `binne` : 2028 × 1520 à 30 i/s. |
+| `largeur`, `hauteur` | `1280`, `720` | Image envoyée par le nœud (1920 × 1080 conseillé pour la cible). |
+| `fps` | selon `capteur` | 10 i/s en `complet`, 30 i/s en `binne`, sauf si indiqué. |
+| `debit` | `4M` | Débit H.264 du nœud. |
+
+Ces réglages sont envoyés au nœud à sa connexion, et de nouveau après « Recharger la configuration » (le nœud redémarre sa caméra si le capteur, la taille, la cadence ou le débit changent). Le cadrage lui-même est enregistré sur le nœud (`/var/lib/arc-replay/cadrage-<id>.json`) et restauré au redémarrage.
 
 ### Caméra IP (`type: rtsp`)
 

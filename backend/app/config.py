@@ -16,7 +16,14 @@ ID_CAMERA = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 DEBIT = re.compile(r"^\d+(\.\d+)?[kKmM]?$")
 DELAI_MIN_S = 3
 DELAI_MAX_S = 30
-ZOOM_MAX = 8
+DEBIT_UNITES = {"": 1, "k": 1_000, "K": 1_000, "m": 1_000_000, "M": 1_000_000}
+
+
+class CadrageConfig(BaseModel):
+    """Cadrage numérique d'une caméra Raspberry Pi, réglé depuis la télécommande."""
+    zoom_max: float = Field(8, ge=1, le=16)
+    pas_zoom: float = Field(1.25, gt=1, le=4)          # « zoom + » multiplie le zoom par ce pas
+    pas_deplacement: float = Field(0.10, gt=0, le=1)   # part de la largeur visible par flèche
 
 
 class Camera(BaseModel):
@@ -38,8 +45,17 @@ class Camera(BaseModel):
 
     # Affichage
     ralenti: bool = False
-    # Nœud Raspberry Pi qui applique le recadrage réglé depuis la télécommande
-    recadrage: bool = False
+    # Affichée en direct (WebRTC, < 1 s) au lieu du différé : la vue de la cible
+    direct: bool = False
+
+    # Nœud Raspberry Pi (type reseau)
+    # Cadrage réglé depuis la télécommande (présence du bloc = cadrage actif)
+    cadrage: Optional[CadrageConfig] = None
+    recadrage: bool = False  # ancien nom : équivaut à un bloc « cadrage » par défaut
+    # Mode du capteur : complet (pleine définition, 10 i/s) ou binne (30 i/s)
+    capteur: Literal["complet", "binne"] = "complet"
+    # Caméra cible : false = détection d'impact et score désactivés partout
+    detection: Optional[bool] = None
 
     @field_validator("id")
     @classmethod
@@ -70,7 +86,28 @@ class Camera(BaseModel):
                 )
         if self.type == "rtsp" and not (self.url and self.url.startswith(("rtsp://", "rtsps://"))):
             raise ValueError(f"caméra {self.id} : 'url' rtsp:// requise pour une caméra IP")
+        if self.recadrage and self.cadrage is None:
+            self.cadrage = CadrageConfig()
+        if self.cadrage is not None and self.type != "reseau":
+            raise ValueError(f"caméra {self.id} : le cadrage ne concerne qu'un nœud Raspberry Pi (type reseau)")
         return self
+
+    def debit_bps(self) -> int:
+        """« 4M » -> 4000000, « 2500k » -> 2500000."""
+        unite = self.debit[-1] if self.debit[-1] in "kKmM" else ""
+        return int(float(self.debit[: len(self.debit) - len(unite)]) * DEBIT_UNITES[unite])
+
+    def config_noeud(self) -> dict:
+        """Réglages envoyés au nœud Raspberry Pi à sa connexion (voir noeuds/camera/canal.py)."""
+        return {
+            "capteur": self.capteur,
+            "largeur": self.largeur,
+            "hauteur": self.hauteur,
+            # Cadence par défaut selon le capteur (10 i/s en pleine définition), sauf si imposée
+            "fps": self.fps if "fps" in self.model_fields_set else None,
+            "debit": self.debit_bps(),
+            "cadrage": self.cadrage.model_dump() if self.cadrage else None,
+        }
 
 
 class Serveur(BaseModel):
@@ -125,6 +162,11 @@ class Config(BaseModel):
         if doublons:
             raise ValueError(f"identifiants de caméra en double : {', '.join(sorted(doublons))}")
         return self
+
+    @property
+    def score_actif(self) -> bool:
+        """Détection d'impact et score : désactivés si une caméra porte « detection: false »."""
+        return not any(c.detection is False for c in self.cameras)
 
     def camera(self, cam_id: str) -> Optional[Camera]:
         return next((c for c in self.cameras if c.id == cam_id), None)

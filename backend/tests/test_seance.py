@@ -154,14 +154,3 @@ def test_csv_groupements():
     lignes = seance.contenu_csv_groupements(e).splitlines()
     assert lignes[1] == "1;2;10.0;0.0;10.0"
     assert lignes[2] == "seance;2;10.0;0.0;10.0"
-
-
-def test_recadrer_borne_la_zone():
-    r = seance.recadrer(None, 8, zoom=2)
-    assert r == {"zoom": 2.0, "x": 0.5, "y": 0.5}
-    r = seance.recadrer(r, 8, dx=1)  # un écran vers la droite, butée au bord
-    assert r["x"] == 0.75
-    r = seance.recadrer(r, 8, zoom=20, x=0, y=1)
-    assert r["zoom"] == 8 and r["x"] == 0.0625 and r["y"] == 0.9375
-    assert seance.recadrer(r, 8, zoom=0.5)["zoom"] == 1.0
-    assert seance.recadrer(r, 8, reinitialiser=True) == seance.RECADRAGE_DEFAUT

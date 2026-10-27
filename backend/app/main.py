@@ -47,6 +47,11 @@ class Serveur:
         self.sauvegarde = {"etat": "inactif", "message": ""}
         self.disque = {"libre_go": None}
         self.erreurs_cameras: list[str] = []
+        # Nœuds Raspberry Pi connectés (canal de commande) et commandes en attente de réponse
+        self.noeuds: dict[str, WebSocket] = {}
+        self.cadrages: dict[str, dict] = {}  # cadrage effectif annoncé par chaque nœud
+        self.attentes: dict[int, asyncio.Future] = {}
+        self.numero_commande = 0
         self.etat = self._charger_etat()
 
     # --- chemins ---------------------------------------------------------------
@@ -79,7 +84,7 @@ class Serveur:
             try:
                 ancien = json.loads(fichier.read_text(encoding="utf-8"))
                 for cle in ("delai_s", "lateralite", "disposition", "afficher_qr", "qr_type",
-                            "blason", "grille", "reperes", "recadrages"):
+                            "blason", "grille", "reperes"):
                     if cle in ancien:
                         etat[cle] = ancien[cle]
             except (OSError, ValueError, TypeError):
@@ -128,7 +133,7 @@ class Serveur:
 
     def vue(self) -> dict:
         """État complet envoyé aux clients (avec les infos non sauvegardées)."""
-        return {
+        vue = {
             **self.etat,
             "cameras": [
                 {
@@ -137,13 +142,19 @@ class Serveur:
                     "type": c.type,
                     "fps": c.fps,
                     "ralenti": c.ralenti,
-                    "recadrage": getattr(c, "recadrage", False),
+                    "direct": c.direct,
+                    "cadrage": c.cadrage.model_dump() if c.cadrage else None,
                 }
                 for c in self.toutes_cameras()
             ],
+            # Cadrage effectif de chaque caméra cadrable, et nœud connecté ou non
+            "cadrages": {
+                c.id: {"connecte": c.id in self.noeuds, **self.cadrages.get(c.id, {})}
+                for c in self.config.cameras if c.cadrage
+            },
+            "score_actif": self.config.score_actif,
             "usb": {**self.usb, "sauvegarde": self.sauvegarde},
             "disque": {**self.disque, "alerte_go": self.config.serveur.alerte_espace_go},
-            "groupements": seance.groupements(self.etat),
             "code_requis": bool(self.config.serveur.code_telecommande),
             "wifi": (
                 {"ssid": self.config.serveur.wifi_ssid, "mot_de_passe": self.config.serveur.wifi_mot_de_passe or ""}
@@ -153,6 +164,12 @@ class Serveur:
             "erreurs_cameras": self.erreurs_cameras,
             "clips_config": {"avant_s": self.config.clips.avant_s, "apres_s": self.config.clips.apres_s},
         }
+        if self.config.score_actif:
+            vue["groupements"] = seance.groupements(self.etat)
+        else:
+            # Détection désactivée (detection: false) : rien sur le score ni les impacts
+            vue.pop("blason", None)
+        return vue
 
     async def diffuser(self, sauver: bool = True) -> None:
         if sauver:
@@ -383,6 +400,42 @@ class Serveur:
             seance.reconcilier_disposition(self.etat, self.toutes_cameras())
             await self.diffuser()
         await self.appliquer_cameras()
+        # Les nœuds connectés reçoivent leurs nouveaux réglages
+        for cam_id, ws in list(self.noeuds.items()):
+            cam = self.config.camera(cam_id)
+            if cam:
+                try:
+                    await ws.send_text(json.dumps({"type": "config", "camera": cam.config_noeud()}))
+                except Exception:
+                    pass
+
+    # --- nœuds Raspberry Pi : cadrage ----------------------------------------------
+
+    async def commander_noeud(self, cam_id: str, commande: dict, delai_s: float = 3) -> dict:
+        """Envoie une commande au nœud et attend le cadrage effectif qu'il renvoie."""
+        ws = self.noeuds.get(cam_id)
+        if ws is None:
+            raise HTTPException(503, f"le nœud de la caméra « {cam_id} » n'est pas connecté")
+        self.numero_commande += 1
+        numero = self.numero_commande
+        attente = asyncio.get_running_loop().create_future()
+        self.attentes[numero] = attente
+        try:
+            await ws.send_text(json.dumps({"type": "commande", "id": numero, "commande": commande}))
+            reponse = await asyncio.wait_for(attente, delai_s)
+        except asyncio.TimeoutError:
+            raise HTTPException(504, "le nœud n'a pas répondu")
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(503, f"nœud injoignable : {e}")
+        finally:
+            self.attentes.pop(numero, None)
+        if reponse.get("erreur"):
+            raise HTTPException(400, f"cadrage refusé par le nœud : {reponse['erreur']}")
+        self.cadrages[cam_id] = reponse.get("cadrage") or {}
+        await self.diffuser(sauver=False)
+        return self.cadrages[cam_id]
 
 
 # --- modèles des requêtes ----------------------------------------------------------
@@ -417,7 +470,7 @@ class Commande(BaseModel):
         "rejeu", "rejeu_controle", "rejeu_fermer",
         "nouvelle_volee", "nouvelle_seance", "marquer", "annuler_fleche", "score",
         "comparer", "sauvegarder_usb",
-        "blason", "grille", "repere_ajouter", "repere_supprimer", "recadrage",
+        "blason", "grille", "repere_ajouter", "repere_supprimer",
     ]
     valeur: Optional[float | str | bool] = None
     ordre: Optional[list[str]] = None
@@ -432,13 +485,6 @@ class Commande(BaseModel):
     fleche_id_b: Optional[str] = None  # comparaison : seconde flèche
     superposer: Optional[bool] = None  # comparaison : superposées plutôt que côte à côte
     x: Optional[bool] = None  # saisie du score : X (10 intérieur)
-    # Recadrage : zoom, centre (0 à 1) ou déplacement relatif (fraction de la zone gardée)
-    zoom: Optional[float] = Field(None, ge=1, le=cfg.ZOOM_MAX)
-    centre_x: Optional[float] = Field(None, ge=0, le=1)
-    centre_y: Optional[float] = Field(None, ge=0, le=1)
-    dx: Optional[float] = Field(None, ge=-1, le=1)
-    dy: Optional[float] = Field(None, ge=-1, le=1)
-    reinitialiser: bool = False
     lecture: Optional[bool] = None
     vitesse: Optional[float] = Field(None, gt=0, le=2)
     redemarrer: bool = False
@@ -508,10 +554,70 @@ async def apercu_camera(camera_id: str):
     return Response(image, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
-@app.get("/api/recadrage/{camera_id}")
-async def lire_recadrage(camera_id: str):
-    """Lu toutes les demi-secondes par le nœud caméra, qui applique la zone à son capteur."""
-    return srv().etat.get("recadrages", {}).get(camera_id, seance.RECADRAGE_DEFAUT)
+@app.get("/api/cadrage/{camera_id}")
+async def lire_cadrage(camera_id: str):
+    s = srv()
+    cam = s.config.camera(camera_id)
+    if cam is None or cam.cadrage is None:
+        raise HTTPException(404, "caméra sans cadrage (bloc « cadrage » dans la configuration)")
+    return {"connecte": camera_id in s.noeuds, "cadrage": s.cadrages.get(camera_id)}
+
+
+class DemandeCadrage(BaseModel):
+    action: Literal["deplacer", "zoomer", "reinitialiser"]
+    dx: float = Field(0, ge=-10, le=10)   # en pas (un pas = pas_deplacement de la largeur visible)
+    dy: float = Field(0, ge=-10, le=10)
+    pas: Optional[float] = Field(None, ge=-20, le=20)       # zoomer : +1 = zoom +, -1 = zoom −
+    facteur: Optional[float] = Field(None, gt=0, le=16)     # zoomer : ou un facteur direct
+
+
+@app.post("/api/cadrage/{camera_id}", dependencies=[Depends(verifier_code)])
+async def cadrer(camera_id: str, demande: DemandeCadrage):
+    """Relaye la commande au nœud ; tous les écrans et télécommandes reçoivent le nouveau cadrage."""
+    s = srv()
+    cam = s.config.camera(camera_id)
+    if cam is None or cam.cadrage is None:
+        raise HTTPException(404, "caméra sans cadrage (bloc « cadrage » dans la configuration)")
+    commande = demande.model_dump(exclude_none=True)
+    return await s.commander_noeud(camera_id, commande)
+
+
+@app.websocket("/api/noeud/ws")
+async def canal_noeud(ws: WebSocket, camera: str):
+    """Canal ouvert par un nœud Raspberry Pi : réglages, commandes de cadrage, cadrage effectif."""
+    s = srv()
+    await ws.accept()
+    cam = s.config.camera(camera)
+    if cam is None:
+        await ws.close(code=4404, reason="caméra inconnue dans arc-replay.yml")
+        return
+    precedent = s.noeuds.get(camera)
+    s.noeuds[camera] = ws
+    if precedent is not None:
+        try:
+            await precedent.close()
+        except Exception:
+            pass
+    log.info("nœud « %s » connecté", camera)
+    try:
+        await ws.send_text(json.dumps({"type": "config", "camera": cam.config_noeud()}))
+        await s.diffuser(sauver=False)
+        while True:
+            message = json.loads(await ws.receive_text())
+            if message.get("type") == "cadrage":
+                s.cadrages[camera] = message.get("cadrage") or {}
+                await s.diffuser(sauver=False)
+            elif message.get("type") == "reponse":
+                attente = s.attentes.get(message.get("id"))
+                if attente is not None and not attente.done():
+                    attente.set_result(message)
+    except (WebSocketDisconnect, ValueError):
+        pass
+    finally:
+        if s.noeuds.get(camera) is ws:
+            del s.noeuds[camera]
+            log.info("nœud « %s » déconnecté", camera)
+            await s.diffuser(sauver=False)
 
 
 @app.post("/api/lacher")
@@ -523,8 +629,13 @@ async def lacher(demande: DemandeLacher):
     return fleche
 
 
+SCORE_DESACTIVE = "score désactivé (detection: false dans la configuration)"
+
+
 @app.post("/api/impact")
 async def impact(demande: DemandeImpact):
+    if not srv().config.score_actif:
+        raise HTTPException(404, SCORE_DESACTIVE)
     return await srv().impact(demande)
 
 
@@ -571,6 +682,8 @@ async def retirer_camera_telephone(cam_id: str):
 @app.post("/api/commande", dependencies=[Depends(verifier_code)])
 async def commande(c: Commande):
     s = srv()
+    if c.action in ("score", "blason") and not s.config.score_actif:
+        raise HTTPException(404, SCORE_DESACTIVE)
     ids = [cam.id for cam in s.toutes_cameras()]
 
     if c.action == "marquer":
@@ -699,14 +812,6 @@ async def commande(c: Commande):
             e["rejeu"] = None
         elif c.action == "nouvelle_volee":
             seance.nouvelle_volee(e)
-        elif c.action == "recadrage":
-            cam = s.config.camera(c.camera or "")
-            if cam is None or not cam.recadrage:
-                raise HTTPException(400, "cette caméra ne se recadre pas (recadrage: true dans la configuration)")
-            e.setdefault("recadrages", {})[cam.id] = seance.recadrer(
-                e["recadrages"].get(cam.id), cfg.ZOOM_MAX, zoom=c.zoom, x=c.centre_x, y=c.centre_y,
-                dx=c.dx, dy=c.dy, reinitialiser=c.reinitialiser,
-            )
         elif c.action == "annuler_fleche":
             f = seance.annuler_derniere(e)
             if f is None:

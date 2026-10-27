@@ -1,21 +1,27 @@
 # Nœud cible Arc Replay
-serveur: 10.42.0.1          # adresse du serveur (point d'accès Wi-Fi du Pi 5)
+serveur: 10.42.0.1          # adresse du serveur ; 127.0.0.1 si serveur et cible sont sur le même Pi
 chemin: cible               # = id de la caméra dans config/arc-replay.yml
 
-# Flux vidéo envoyé à la mosaïque.
-# Sur Pi 3B+ (encodeur matériel partagé avec les caméras USB du serveur),
-# rester en 720p : 1920x1080 consomme à lui seul le budget H.264 du GPU.
-largeur: 1280
-hauteur: 720
-fps: 30
-debit: 3000000
+# false : « cible directe » — vue en direct cadrée depuis la télécommande,
+#         sans OpenCV ni détection d'impact (Pi 3 B+ qui fait aussi serveur).
+# true  : détection d'impact (reportée pour l'instant, voir docs/noeud-cible.md).
+detection: false
 
-# Zoom numérique sur le capteur (1 = aucun). La caméra HQ (IMX477, 12 MP)
-# avec le téléobjectif 25 mm placée au pas de tir à 18 m ne cadre le blason
-# que sur ~27 % de l'image ; zoom_numerique: 3 le fait passer à ~80 %,
-# ce qui remplit la vue et surtout donne à la détection d'impact des pixels
-# assez fins (lores 640x480 → ~2,4 mm/pixel sur le blason au lieu de ~7).
-# La calibration (calibrer.py) applique le même zoom : à refaire si changé.
+# --- Mode « cible directe » ----------------------------------------------------
+# Capteur, résolution, cadence, débit et pas du cadrage se règlent dans
+# config/arc-replay.yml (caméra « cible ») : le serveur les envoie au nœud.
+# Les valeurs ci-dessous ne servent que si le serveur ne répond pas au démarrage.
+capteur: complet            # complet : 4056x3040 à 10 i/s ; binne : 2028x1520 à 30 i/s
+largeur: 1920
+hauteur: 1080
+debit: 4000000
+fichier_cadrage: /var/lib/arc-replay/cadrage-cible.json   # cadrage restauré au démarrage
+
+# --- Mode détection (detection: true) --------------------------------------------
+# Zoom numérique fixe sur le capteur (1 = aucun). La caméra HQ placée au pas
+# de tir à 18 m ne cadre le blason que sur une petite part de l'image ;
+# zoom_numerique: 3 le fait passer à ~80 % et donne à la détection des pixels
+# plus fins. La calibration (calibrer.py) applique le même zoom : à refaire si changé.
 zoom_numerique: 3
 
 # Analyse : images basse définition en niveaux de gris

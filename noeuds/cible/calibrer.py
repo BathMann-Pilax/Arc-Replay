@@ -34,15 +34,14 @@ def capture(conf: dict, sortie: Path) -> None:
 
     largeur, hauteur = conf["lores"]
     picam = Picamera2()
-    controles: dict = {}
-    recadrage = recadrage_zoom(picam, conf.get("zoom_numerique"))
-    if recadrage:
-        controles["ScalerCrop"] = recadrage  # même cadrage que le service
     picam.configure(picam.create_still_configuration(
         main={"size": (conf.get("largeur", 1920), conf.get("hauteur", 1080))},
         lores={"size": (largeur, hauteur), "format": "YUV420"},
-        controls=controles,
     ))
+    # Même cadrage que le service, calculé APRÈS configure() (zone du capteur connue)
+    recadrage = recadrage_zoom(picam, conf.get("zoom_numerique"))
+    if recadrage:
+        picam.set_controls({"ScalerCrop": recadrage})
     picam.start()
     import time
     time.sleep(2)  # laisse l'exposition se stabiliser

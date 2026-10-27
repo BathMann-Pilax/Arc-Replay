@@ -7,11 +7,11 @@ adresse : c'est le nœud qui pousse son flux.
 
     python3 streamer.py --serveur 10.42.0.1 --chemin cible
 
-Caméra de cible sur le pas de tir (caméra HQ + objectif 25 mm) : recadrage réglé
-depuis la télécommande, capteur en pleine définition (10 images/s) :
+Caméra cadrée depuis la télécommande (caméra HQ au pas de tir, par exemple) :
+réglages du flux et du cadrage lus dans config/arc-replay.yml, cadrage enregistré
+sur le Pi (voir vue_cadree.py) :
 
-    python3 streamer.py --chemin cible --largeur 1280 --hauteur 720 --fps 10 \
-        --recadrage --capteur-complet
+    python3 streamer.py --chemin cible --recadrage
 
 Le module expose aussi `demarrer_flux()`, réutilisé par le nœud cible.
 """
@@ -45,15 +45,30 @@ def calculer_recadrage(maximum: tuple[int, int, int, int],
 
 
 def recadrage_zoom(picam, zoom: float | None) -> tuple[int, int, int, int] | None:
-    """ScalerCrop à passer à la configuration pour le zoom voulu (None si inutile)."""
+    """ScalerCrop pour le zoom voulu (None si inutile).
+
+    À appeler APRÈS picam.configure() : avant, ScalerCropMaximum vaut (0, 0, 0, 0).
+    """
     if not zoom or zoom <= 1:
         return None
-    return calculer_recadrage(tuple(picam.camera_properties["ScalerCropMaximum"]), zoom)
+    from cadrage import zone_maximale
+
+    return calculer_recadrage(zone_maximale(picam), zoom)
+
+
+def taille_capteur(picam, capteur: str | None) -> tuple[int, int] | None:
+    """Mode du capteur : « complet » (pleine définition) ou « binne » (pixels regroupés 2 × 2)."""
+    if capteur == "complet":
+        return tuple(picam.sensor_resolution)
+    if capteur == "binne":
+        largeur, hauteur = picam.sensor_resolution
+        return largeur // 2, hauteur // 2
+    return None  # choix de picamera2
 
 
 def demarrer_flux(serveur: str, chemin: str, largeur: int, hauteur: int, fps: int,
                   debit: int, lores: tuple[int, int] | None = None, capteur_complet: bool = False,
-                  zoom: float | None = None):
+                  zoom: float | None = None, capteur: str | None = None, cadrage_initial=None):
     """Démarre la caméra et la publication RTSP. Renvoie l'objet Picamera2.
 
     `lores` ajoute un second flux basse définition en niveaux de gris,
@@ -63,27 +78,35 @@ def demarrer_flux(serveur: str, chemin: str, largeur: int, hauteur: int, fps: in
     `zoom` (> 1) recadre le capteur sur sa partie centrale, une fois pour toutes :
     utile quand la cible n'occupe qu'un petit coin de l'image (téléobjectif,
     cible éloignée). La calibration (calibrer.py) doit utiliser le même zoom.
-    Pour un cadrage réglable depuis la télécommande, voir plutôt recadrage.py.
+    `capteur` : « complet » (4056 × 3040 sur la caméra HQ, 10 i/s) ou « binne »
+    (2028 × 1520, 30 i/s). `capteur_complet=True` équivaut à « complet ».
+    `cadrage_initial(picam)` renvoie la zone ScalerCrop à appliquer dès le
+    démarrage (cadrage réglable, voir vue_cadree.py).
     """
     from picamera2 import Picamera2
     from picamera2.encoders import H264Encoder
     from picamera2.outputs import FfmpegOutput
 
     picam = Picamera2()
-    controles: dict = {"FrameRate": fps}
-    recadrage = recadrage_zoom(picam, zoom)
-    if recadrage:
-        controles["ScalerCrop"] = recadrage
-        log.info("zoom numérique x%.1f : recadrage %s", zoom, recadrage)
     flux = {"size": (largeur, hauteur), "format": "YUV420"}
-    options = {"main": flux, "controls": controles}
+    options = {"main": flux, "controls": {"FrameRate": fps}}
     if lores:
         options["lores"] = {"size": lores, "format": "YUV420"}
-    if capteur_complet:
-        options["sensor"] = {"output_size": picam.sensor_resolution}
+    mode = taille_capteur(picam, "complet" if capteur_complet else capteur)
+    if mode:
+        options["sensor"] = {"output_size": mode}
+        if mode[0] * mode[1] > 8_000_000:
+            options["buffer_count"] = 3  # 12 Mpx : peu de mémoire sur un Pi 3
     picam.configure(picam.create_video_configuration(**options))
 
-    # Image clé toutes les secondes : segments HLS d'1 s et clips précis côté serveur
+    # Recadrage APRÈS configure() : la zone maximale du capteur n'est connue qu'ici
+    recadrage = cadrage_initial(picam) if cadrage_initial else recadrage_zoom(picam, zoom)
+    if recadrage:
+        picam.set_controls({"ScalerCrop": tuple(recadrage)})
+        log.info("recadrage du capteur : %s", tuple(recadrage))
+
+    # Image clé toutes les secondes (segments HLS d'1 s, clips précis, WebRTC qui
+    # démarre vite) ; repeat : SPS/PPS répétés avant chaque image clé
     encodeur = H264Encoder(bitrate=debit, repeat=True, iperiod=fps)
     sortie = FfmpegOutput(f"-f rtsp -rtsp_transport tcp rtsp://{serveur}:8554/{chemin}")
     picam.start_recording(encodeur, sortie)
@@ -106,9 +129,10 @@ def arguments(description: str = __doc__) -> argparse.ArgumentParser:
     p.add_argument("--fps", type=int, default=30)
     p.add_argument("--debit", type=int, default=6_000_000, help="débit en bit/s")
     p.add_argument("--recadrage", action="store_true",
-                   help="applique le recadrage réglé depuis la télécommande")
+                   help="cadrage réglé depuis la télécommande ; réglages du flux lus sur le serveur")
     p.add_argument("--capteur-complet", action="store_true",
                    help="capteur en pleine définition (recadrage net, cadence réduite)")
+    p.add_argument("--fichier-cadrage", default=None, help="cadrage enregistré (avec --recadrage)")
     return p
 
 
@@ -116,15 +140,20 @@ def main() -> int:
     """S'arrête en erreur si le flux tombe : systemd relance le service."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = arguments().parse_args()
+    if args.recadrage:
+        import vue_cadree
+
+        return vue_cadree.executer({
+            "serveur": args.serveur, "chemin": args.chemin, "largeur": args.largeur,
+            "hauteur": args.hauteur, "fps": args.fps if args.capteur_complet is False else None,
+            "debit": args.debit, "capteur": "complet" if args.capteur_complet else None,
+            "fichier_cadrage": args.fichier_cadrage or f"/var/lib/arc-replay/cadrage-{args.chemin}.json",
+        })
     arret = {"demande": False}
     signal.signal(signal.SIGTERM, lambda *_: arret.update(demande=True))
 
     picam, sortie = demarrer_flux(args.serveur, args.chemin, args.largeur, args.hauteur, args.fps, args.debit,
                                   capteur_complet=args.capteur_complet)
-    if args.recadrage:
-        import recadrage
-
-        recadrage.suivre(picam, args.serveur, args.chemin, args.largeur, args.hauteur)
     code = 0
     try:
         while not arret["demande"]:

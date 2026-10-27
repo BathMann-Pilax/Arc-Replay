@@ -1,5 +1,5 @@
 [Unit]
-Description=Arc Replay - nœud cible (vidéo + détection des impacts)
+Description=Arc Replay - nœud cible (vue en direct, détection des impacts si activée)
 After=network-online.target time-sync.target
 Wants=network-online.target
 
@@ -10,6 +10,8 @@ Restart=always
 RestartSec=5
 User=arc
 SupplementaryGroups=video
+# /var/lib/arc-replay : cadrage enregistré, restauré au démarrage
+StateDirectory=arc-replay
 
 [Install]
 WantedBy=multi-user.target

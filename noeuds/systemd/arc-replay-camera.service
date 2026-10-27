@@ -13,6 +13,8 @@ Restart=always
 RestartSec=5
 User=arc
 SupplementaryGroups=video
+# /var/lib/arc-replay : cadrage enregistré, restauré au démarrage
+StateDirectory=arc-replay
 
 [Install]
 WantedBy=multi-user.target

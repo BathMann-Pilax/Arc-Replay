@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Nœud cible Arc Replay (Pi 4 dans le coffre d'éclairage de la cible).
+"""Nœud cible Arc Replay.
 
-- publie la vue de la cible vers le serveur (comme un nœud caméra) ;
-- garde en mémoire les dernières images basse définition ;
-- à chaque flèche annoncée par le serveur, compare l'image d'avant le lâcher
-  et celle d'après, localise la nouvelle flèche et envoie l'impact au serveur.
+Deux modes, choisis par `detection` dans cible.yml :
+
+- `detection: false` (« cible directe ») : vue de la cible en direct, cadrée
+  depuis la télécommande, sans OpenCV ni analyse d'image (vue_cadree.py).
+  Convient à un Pi 3 B+ qui fait aussi serveur.
+- `detection: true` : en plus du flux, garde les dernières images basse
+  définition et, à chaque flèche annoncée par le serveur, compare l'image
+  d'avant le lâcher et celle d'après, localise la nouvelle flèche et envoie
+  l'impact au serveur.
 
     python3 cible.py --config cible.yml
 """
@@ -27,8 +32,10 @@ import yaml
 
 # streamer.py vit dans noeuds/camera (ou à côté de ce fichier une fois installé)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "camera"))
-import detection  # noqa: E402
 from streamer import demarrer_flux, flux_actif  # noqa: E402
+
+# OpenCV n'est chargé qu'en mode détection (absent sur un nœud « cible directe »)
+detection = None
 
 log = logging.getLogger("arc.cible")
 
@@ -166,6 +173,20 @@ def main() -> int:
     p.add_argument("--config", default=str(Path(__file__).with_name("cible.yml")))
     conf = yaml.safe_load(Path(p.parse_args().config).read_text())
 
+    if not conf.get("detection", True):
+        import vue_cadree
+
+        return vue_cadree.executer({
+            "serveur": conf["serveur"], "chemin": conf.get("chemin", "cible"),
+            "capteur": conf.get("capteur"), "largeur": conf.get("largeur"), "hauteur": conf.get("hauteur"),
+            "fps": conf.get("fps"), "debit": conf.get("debit"), "cadrage": conf.get("cadrage"),
+            "fichier_cadrage": conf.get("fichier_cadrage"),
+        })
+
+    global detection
+    import detection as module_detection
+
+    detection = module_detection
     noeud = NoeudCible(conf)
     picam, sortie = demarrer_flux(
         conf["serveur"], conf.get("chemin", "cible"),

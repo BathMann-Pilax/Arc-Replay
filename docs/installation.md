@@ -62,6 +62,10 @@ ls -l /dev/v4l/by-id/
 
 Utilisez toujours le chemin `by-id` (et l'entrée `-video-index0`) : `/dev/video0` peut changer de numéro au redémarrage.
 
+Exception : beaucoup de webcams bon marché n'ont pas de numéro de série, et deux modèles identiques partagent alors le même nom `by-id` (une seule apparaît). Utilisez dans ce cas le chemin `/dev/v4l/by-path/…`, lié au port USB, et branchez toujours la même vue sur le même port.
+
+**Avant d'acheter plusieurs webcams**, testez-en une avec `./scripts/tester-webcam.sh` (paquet `v4l-utils`) : il vérifie le MJPEG 720p/1080p à 30 i/s, la mise au point, l'anti-scintillement 50 Hz et l'exposition, et donne le chemin à mettre dans la configuration.
+
 Formats proposés par une caméra :
 
 ```bash

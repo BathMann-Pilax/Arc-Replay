@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { commande, memoriserCode, recharger, useEtat } from "./api";
 import { BLASONS, camerasCommunes, indexBlason, libelleScore, rejouable, valeurScore } from "./logique";
-import EditeurCadrage from "./EditeurCadrage";
+import CameraCible from "./CameraCible";
 import EditeurReperes from "./EditeurReperes";
 
 const VITESSES = [1, 0.5, 0.25];
@@ -68,7 +68,6 @@ export default function Telecommande({ integree = false }) {
   const [selection, setSelection] = useState(null); // flèche choisie pour le score
   const [comparaison, setComparaison] = useState(null); // null, ou [] puis [id A] en cours de choix
   const [editeurReperes, setEditeurReperes] = useState(false);
-  const [editeurCadrage, setEditeurCadrage] = useState(false);
 
   const agir = async (action, params) => {
     setErreur(null);
@@ -271,10 +270,12 @@ export default function Telecommande({ integree = false }) {
                     onClick={() => toucherFleche(f)}
                   >
                     <span className="fleche__num">F{f.numero}</span>
-                    <span className="fleche__score">
-                      {libelleScore(f.impact)}
-                      {f.impact?.doute && <span className="score__doute" title="Sur la ligne, à confirmer">?</span>}
-                    </span>
+                    {etat.score_actif !== false && (
+                      <span className="fleche__score">
+                        {libelleScore(f.impact)}
+                        {f.impact?.doute && <span className="score__doute" title="Sur la ligne, à confirmer">?</span>}
+                      </span>
+                    )}
                     {statutFleche(f) && <span className="fleche__statut">{statutFleche(f)}</span>}
                   </button>
                 ))}
@@ -289,6 +290,13 @@ export default function Telecommande({ integree = false }) {
         )}
       </Section>
 
+      {etat.cameras.some((c) => c.cadrage) && (
+        <Section titre="Caméra cible">
+          <CameraCible etat={etat} surErreur={(e) => (e.codeRequis ? setCodeDemande(true) : setErreur(e.message))} />
+        </Section>
+      )}
+
+      {etat.score_actif !== false && (
       <Section titre="Score">
         <div className="rangee">
           <select className="champ" aria-label="Blason" value={indexBlason(etat.blason)}
@@ -346,6 +354,7 @@ export default function Telecommande({ integree = false }) {
           </p>
         )}
       </Section>
+      )}
       </div>
 
       <div className="colonne">
@@ -456,13 +465,6 @@ export default function Telecommande({ integree = false }) {
           </button>
         </div>
         {editeurReperes && <EditeurReperes etat={etat} agir={agir} />}
-        {etat.cameras.some((c) => c.recadrage) && (
-          <button className={`bouton ${editeurCadrage ? "bouton--actif" : ""}`}
-            onClick={() => setEditeurCadrage(!editeurCadrage)}>
-            Cadrage de la cible
-          </button>
-        )}
-        {editeurCadrage && <EditeurCadrage etat={etat} agir={agir} />}
 
         <label className="interrupteur">
           <input type="checkbox" checked={etat.afficher_qr}

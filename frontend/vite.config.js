@@ -53,6 +53,16 @@ export default defineConfig({
           }),
       },
       "/fichiers": { target: backend },
+      // WebRTC (WHEP de la vue directe, WHIP des téléphones) : signalement vers MediaMTX
+      "/webrtc": {
+        target: process.env.ARC_WEBRTC || "http://localhost:8889",
+        rewrite: (p) => p.replace(/^\/webrtc/, ""),
+        configure: (proxy) =>
+          proxy.on("proxyRes", (res) => {
+            const loc = res.headers.location;
+            if (loc && loc.startsWith("/")) res.headers.location = "/webrtc" + loc;
+          }),
+      },
     },
   },
 });

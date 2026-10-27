@@ -102,3 +102,5 @@ async function envoyer(url, corps) {
 
 export const commande = (action, params = {}) => envoyer("/api/commande", { action, ...params });
 export const recharger = () => envoyer("/api/recharger");
+/** Cadrage d'une caméra : { action: "deplacer", dx, dy } | { action: "zoomer", pas } | { action: "reinitialiser" }. */
+export const cadrer = (camera, corps) => envoyer(`/api/cadrage/${encodeURIComponent(camera)}`, corps);

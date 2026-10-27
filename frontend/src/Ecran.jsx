@@ -5,6 +5,7 @@ import { adresseTelecommande, colonnesPour, libelleScore, origineVisible, texteQ
 import MiniCible from "./MiniCible";
 import Rejeu from "./Rejeu";
 import Telecommande from "./Telecommande";
+import VueDirecte from "./VueDirecte";
 import VueLive from "./VueLive";
 
 function Qr({ adresse, etiquette, texte }) {
@@ -54,11 +55,16 @@ export default function Ecran() {
   const groupement = etat.groupements?.volee;
   const derniere = etat.fleches.at(-1);
 
-  const vue = (c, etiquette = true) => (
-    <VueLive key={c.id} camera={c} delai={etat.delai_s} decalage={decalage}
-      etiquette={etiquette} miroir={(etat.disposition.miroir || []).includes(c.id)}
-      reperes={etat.reperes?.[c.id] || []} grille={!!etat.grille} />
-  );
+  // La vue « direct: true » (cible) est en direct ; les autres, en différé
+  const vue = (c, etiquette = true) => {
+    const options = {
+      camera: c, etiquette, miroir: (etat.disposition.miroir || []).includes(c.id),
+      reperes: etat.reperes?.[c.id] || [], grille: !!etat.grille,
+    };
+    return c.direct
+      ? <VueDirecte key={c.id} {...options} />
+      : <VueLive key={c.id} delai={etat.delai_s} decalage={decalage} {...options} />;
+  };
 
   return (
     <div className="ecran">
@@ -87,7 +93,7 @@ export default function Ecran() {
         {etat.usb.presente && <span className="pastille">clé USB</span>}
       </div>
 
-      {(impacts.length > 0 || derniere?.impact) && !etat.rejeu && (
+      {etat.score_actif !== false && (impacts.length > 0 || derniere?.impact) && !etat.rejeu && (
         <div className="cible-hud">
           <MiniCible impacts={impacts} groupement={groupement} blason={etat.blason} taille={140} />
           {derniere?.impact && (

@@ -161,6 +161,21 @@ La cible est filmée depuis le pas de tir et affichée **en direct** sur l'écra
 
 Matériel : caméra HQ de Raspberry Pi (IMX477, 12 Mpx) et objectif de 12 mm, sur le port caméra (CSI) du Pi, posée sur un trépied stable à côté de l'archer, presque dans l'axe de la cible. À 18 m, le 12 mm voit environ 9,4 × 7 m : on zoome sur le capteur (×5 à ×6 pour cadrer la butte), en pleine définition pour garder le détail. 18 m est la distance maximale prévue.
 
+**Avant tout, tester la faisabilité sur le Pi 3 B+** (HQ Camera + 3 Logitech C920 sur hub USB alimenté, serveur arrêté, télé branchée) :
+
+```bash
+sudo ./scripts/test-faisabilite-pi3.sh --installer   # environ 6 minutes, rapport rapport-faisabilite-pi3-<date>.txt
+```
+
+| Étape | Vérifie | Bloquante |
+|---|---|---|
+| 1 | Chaque C920 (USB `046d:082d`) propose le H.264 en 1280x720 à 30 i/s | oui : sinon « Pi 3 impossible avec ces caméras » |
+| 2 | Les 3 C920 capturent ensemble en H.264 (copie, sans transcodage) pendant 60 s, sans erreur USB dans `dmesg` ; repli en 640x480 | oui |
+| 3 | + HQ Camera (encodeur matériel, 1280x720 à 15 i/s) : CPU, RAM libre, température, `vcgencmd get_throttled` | non (bilan) |
+| 4 | Chromium en kiosque (cage) lit 4 vidéos : décodeur matériel ou logiciel (via le protocole DevTools, comme `chrome://media-internals`), images perdues ; repli automatique à 3 vidéos (« 2 vues affichées ») | non (bilan) |
+
+Une étape seule : `--etape N` ; durée des captures : `--duree 30`.
+
 **Un seul Raspberry Pi 3 B+ peut tout faire** (serveur et caméra cible) :
 
 1. Raspberry Pi OS Lite 64 bits, puis le serveur : `sudo ./scripts/installer-serveur.sh --wifi` (point d'accès en 2,4 GHz sur le Pi 3 B+ : `BANDE=bg`, voir plus haut) et les images Docker précompilées.

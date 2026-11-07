@@ -5,6 +5,8 @@
 #   sudo ./installer.sh cible-directe [serveur]   # vue cible en direct, cadrée depuis la télécommande
 #                                                 # (sans OpenCV : convient au Pi 3 B+ qui fait aussi serveur)
 #   sudo ./installer.sh cible [serveur]           # nœud cible avec détection d'impact (OpenCV)
+#   sudo ./installer.sh webcam-h264 <id> <peripherique> [serveur]
+#                                                 # webcam USB à H.264 intégré (C920) lue par GStreamer
 #
 # <id> doit correspondre à une caméra de type « reseau » dans config/arc-replay.yml.
 # Serveur et nœud sur le même Pi : serveur 127.0.0.1 (l'heure n'est alors pas
@@ -28,8 +30,14 @@ case "$ROLE" in
   cible | cible-directe)
     SERVEUR=${2:-10.42.0.1}
     ;;
+  webcam-h264)
+    ID=${2:?"identifiant de caméra manquant (ex. : profil)"}
+    PERIPHERIQUE=${3:?"webcam manquante (ex. : /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_…-video-index0)"}
+    SERVEUR=${4:-127.0.0.1}
+    ;;
   *)
     echo "Usage : sudo $0 camera <id> [serveur] | cible-directe [serveur] | cible [serveur]" >&2
+    echo "        sudo $0 webcam-h264 <id> <peripherique> [serveur]" >&2
     exit 1
     ;;
 esac
@@ -42,6 +50,34 @@ esac
 
 echo "==> Paquets"
 apt-get update -qq
+if [[ $ROLE == webcam-h264 ]]; then
+  # uvch264src (plugins-bad) règle l'intervalle des images clés de la webcam ;
+  # rtspclientsink (gstreamer1.0-rtsp) publie le flux vers MediaMTX
+  apt-get install -y -qq gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad gstreamer1.0-rtsp v4l-utils
+  id arc &>/dev/null || useradd --system --groups video --home-dir "$DEST" --shell /usr/sbin/nologin arc
+  install -d "$DEST/webcam"
+  install -m 755 "$ICI/webcam/webcam-h264.sh" "$DEST/webcam/"
+  cat > "/etc/default/arc-replay-webcam-$ID" <<EOF
+ARC_SERVEUR=$SERVEUR
+ARC_CHEMIN=$ID
+ARC_PERIPHERIQUE=$PERIPHERIQUE
+ARC_LARGEUR=1280
+ARC_HAUTEUR=720
+ARC_FPS=30
+ARC_DEBIT=2500000
+# Fréquence du secteur, pour l'anti-scintillement : 50 (Europe) ou 60
+ARC_SECTEUR_HZ=50
+EOF
+  install -m 644 "$ICI/systemd/arc-replay-webcam@.service" /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now "arc-replay-webcam@$ID"
+  echo
+  echo "Webcam « $ID » installée. Dans config/arc-replay.yml : id: $ID, type: reseau."
+  echo "Réglages : /etc/default/arc-replay-webcam-$ID"
+  echo "Journal : journalctl -u arc-replay-webcam@$ID -f"
+  exit 0
+fi
 # python3-websockets : canal de commande avec le serveur (cadrage depuis la télécommande)
 apt-get install -y -qq python3-picamera2 ffmpeg python3-yaml python3-websockets
 (( LOCAL )) || apt-get install -y -qq chrony

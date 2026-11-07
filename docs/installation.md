@@ -80,6 +80,28 @@ Conseils de câblage :
 - répartissez les caméras sur les deux ports USB 3 du Pi 5 (contrôleurs séparés) ;
 - rallonges : 5 m maximum en USB 2.0 passif. Au-delà, rallonge active avec hub alimenté, ou extendeur USB sur câble RJ45.
 
+### Webcam à H.264 intégré (Logitech C920)
+
+Lue par ffmpeg, la C920 d'origine (`046d:082d`) n'envoie une image clé H.264 que toutes les 10 s : trop peu pour le différé et la découpe des clips, qui en demandent une par seconde, donc `encodeur: copy` ne convient pas. GStreamer sait régler cet intervalle grâce à l'extension H.264 de la caméra. La C920 envoie alors une image clé par seconde, sans réencodage : environ 5 % d'un cœur au lieu d'un cœur entier en MJPEG, et l'encodeur matériel reste libre.
+
+Sur le serveur, un service par webcam :
+
+```bash
+sudo ./noeuds/installer.sh webcam-h264 profil /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_…-video-index0
+```
+
+Puis dans `config/arc-replay.yml`, la caméra devient un flux publié (c'est le service qui la lit, pas MediaMTX) :
+
+```yaml
+  - id: profil
+    nom: Profil
+    type: reseau
+```
+
+Résolution, cadence, débit et fréquence du secteur (anti-scintillement 50 Hz, remis à chaque démarrage) se règlent dans `/etc/default/arc-replay-webcam-profil`, puis `sudo systemctl restart arc-replay-webcam@profil`. Journal : `journalctl -u arc-replay-webcam@profil -f`.
+
+Les C920 récentes et la C910 n'ont pas de H.264 : elles restent en `type: usb` avec `format_entree: mjpeg`.
+
 ### Clé USB
 
 Formatez-la en **exFAT** (lisible sur Windows, macOS, Android, iPad). Elle est montée automatiquement à l'insertion ; l'export se lance depuis la télécommande.
@@ -189,8 +211,8 @@ Contraintes du Pi 3 B+ : un seul encodeur H.264 matériel, utilisé par la camé
 
 Constaté sur un Pi 3 B+ avec caméra HQ et Logitech C920 :
 
-- **C920** : son H.264 interne n'envoie une image clé que toutes les 10 s, trop peu pour le différé et la découpe des clips (il en faut une par seconde). Utilisez-la en `format_entree: mjpeg` avec `encodeur: v4l2m2m` en 720p 30 i/s : l'encodeur matériel tient la C920 et la caméra cible en 720p ensemble (environ 45 % de CPU).
-- **Trois caméras (C920 + C910 en MJPEG 720p 30 i/s + caméra HQ en 720p)** : ça tient, mais à la limite. Il reste 30 à 45 % de processeur, les webcams sortent 25 à 30 i/s, et l'encodeur matériel est plein (alertes « capture buffers » de `h264_v4l2m2m`). Pas de quatrième webcam USB : ajoutez plutôt un téléphone depuis `/camera`, qui encode lui-même. Le bus USB n'est pas la limite (environ 30 Mbit/s par webcam MJPEG 720p), et débrancher l'Ethernet ne fait rien gagner.
+- **C920** : passez-la par GStreamer (voir « Webcam à H.264 intégré » plus haut), en H.264 natif avec une image clé par seconde. En MJPEG réencodé, elle prend un cœur entier et la moitié de l'encodeur matériel.
+- **Trois caméras (C920 par GStreamer + C910 en MJPEG 720p 30 i/s + caméra HQ en 720p)** : il reste environ 50 % de processeur, les webcams sortent 26 à 30 i/s. Avec les deux webcams en MJPEG, il ne restait que 30 à 45 % et l'encodeur matériel était plein (alertes « capture buffers » de `h264_v4l2m2m`). Chaque webcam MJPEG coûte environ un cœur : pas plus de deux sur ce Pi, en plus des C920 passées par GStreamer. Au-delà, ajoutez un téléphone depuis `/camera`, qui encode lui-même. Le bus USB n'est pas la limite (environ 30 Mbit/s par webcam MJPEG 720p), et débrancher l'Ethernet ne fait rien gagner.
 - **TV branchée sur ce même Pi** : à éviter. Chromium n'a pas de décodage vidéo matériel sur le Pi 3 B+ ; avec le serveur et deux caméras, le Pi sature en processeur et en mémoire jusqu'à se figer. Affichez l'écran sur un autre appareil (vieux PC, boîtier Android TV, tablette) connecté au Wi-Fi `ArcReplay`.
 
 Si le serveur est une autre machine : `sudo ./noeuds/installer.sh cible-directe 10.42.0.1` sur le Pi de la caméra.

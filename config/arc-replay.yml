@@ -52,14 +52,9 @@ blason:
 cameras:
   - id: profil
     nom: Profil
-    type: usb
-    peripherique: /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_7A89583F-video-index0
-    format_entree: mjpeg    # la C920 ne sort une image clé H.264 que toutes les 10 s : on réencode
-    largeur: 1280
-    hauteur: 720
-    fps: 30
-    encodeur: v4l2m2m
-    debit: 2.5M
+    type: reseau            # Logitech C920 lue par GStreamer sur ce Pi, en H.264 natif avec
+                            # une image clé par seconde (noeuds/installer.sh webcam-h264) ;
+                            # résolution et débit : /etc/default/arc-replay-webcam-profil
 
   - id: arriere
     nom: Arrière

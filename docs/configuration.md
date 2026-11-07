@@ -85,7 +85,7 @@ L'ordre de la liste est l'ordre par défaut de la mosaïque ; il se change ensui
 | Encodeur | Quand l'utiliser |
 |---|---|
 | `libx264` | Par défaut, partout. Coûteux en processeur : sur Pi 5, environ 2 à 3 caméras 720p30. |
-| `copy` | La caméra sort déjà du H.264 (`format_entree: h264`) : aucun calcul. |
+| `copy` | La caméra sort déjà du H.264 (`format_entree: h264`) : aucun calcul. Il faut qu'elle envoie une image clé par seconde, ce que la C920 ne fait pas lue par ffmpeg : voir « Webcam à H.264 intégré » dans [installation.md](installation.md). |
 | `vaapi` | Mini-PC Intel (N100…) : encodage matériel, nombreuses caméras et 100 i/s possibles. |
 | `v4l2m2m` | Raspberry Pi 4 utilisé comme serveur : encodeur matériel du Pi 4. |
 

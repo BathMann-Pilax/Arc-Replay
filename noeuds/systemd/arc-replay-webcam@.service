@@ -1,0 +1,16 @@
+[Unit]
+Description=Arc Replay - webcam H.264 %i (GStreamer, une image clé par seconde)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/default/arc-replay-webcam-%i
+ExecStart=/opt/arc-replay/webcam/webcam-h264.sh
+# Webcam débranchée ou serveur pas encore prêt : on réessaie
+Restart=always
+RestartSec=3
+User=arc
+SupplementaryGroups=video
+
+[Install]
+WantedBy=multi-user.target

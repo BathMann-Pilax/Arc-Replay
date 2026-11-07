@@ -61,6 +61,17 @@ cameras:
     encodeur: v4l2m2m
     debit: 2.5M
 
+  - id: arriere
+    nom: Arrière
+    type: usb
+    peripherique: /dev/v4l/by-id/usb-046d_0821_5C1B24A0-video-index0   # Logitech C910
+    format_entree: mjpeg
+    largeur: 1280
+    hauteur: 720
+    fps: 30
+    encodeur: v4l2m2m
+    debit: 2.5M
+
   - id: cible
     nom: Cible
     type: reseau            # nœud cible sur ce même Pi (noeuds/cible), caméra HQ + objectif 12 mm

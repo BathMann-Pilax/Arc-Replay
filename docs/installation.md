@@ -190,6 +190,7 @@ Contraintes du Pi 3 B+ : un seul encodeur H.264 matériel, utilisé par la camé
 Constaté sur un Pi 3 B+ avec caméra HQ et Logitech C920 :
 
 - **C920** : son H.264 interne n'envoie une image clé que toutes les 10 s, trop peu pour le différé et la découpe des clips (il en faut une par seconde). Utilisez-la en `format_entree: mjpeg` avec `encodeur: v4l2m2m` en 720p 30 i/s : l'encodeur matériel tient la C920 et la caméra cible en 720p ensemble (environ 45 % de CPU).
+- **Trois caméras (C920 + C910 en MJPEG 720p 30 i/s + caméra HQ en 720p)** : ça tient, mais à la limite. Il reste 30 à 45 % de processeur, les webcams sortent 25 à 30 i/s, et l'encodeur matériel est plein (alertes « capture buffers » de `h264_v4l2m2m`). Pas de quatrième webcam USB : ajoutez plutôt un téléphone depuis `/camera`, qui encode lui-même. Le bus USB n'est pas la limite (environ 30 Mbit/s par webcam MJPEG 720p), et débrancher l'Ethernet ne fait rien gagner.
 - **TV branchée sur ce même Pi** : à éviter. Chromium n'a pas de décodage vidéo matériel sur le Pi 3 B+ ; avec le serveur et deux caméras, le Pi sature en processeur et en mémoire jusqu'à se figer. Affichez l'écran sur un autre appareil (vieux PC, boîtier Android TV, tablette) connecté au Wi-Fi `ArcReplay`.
 
 Si le serveur est une autre machine : `sudo ./noeuds/installer.sh cible-directe 10.42.0.1` sur le Pi de la caméra.

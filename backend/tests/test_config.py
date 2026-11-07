@@ -11,9 +11,11 @@ RACINE = Path(__file__).resolve().parents[2]
 
 def test_config_exemple_valide():
     c = cfg.charger(RACINE / "config" / "arc-replay.yml")
-    # Exemple réglé pour un Pi 3B+ : deux caméras USB en encodeur matériel, pas de ralenti
+    # Exemple réglé pour un Pi 3B+ : C920 publiée par GStreamer, C910 en encodeur
+    # matériel, caméra cible sur le même Pi, pas de ralenti
     assert [cam.id for cam in c.cameras] == ["profil", "arriere", "cible"]
-    assert c.camera("profil").encodeur == "v4l2m2m"
+    assert c.camera("profil").type == "reseau"
+    assert c.camera("arriere").encodeur == "v4l2m2m"
     assert not any(cam.ralenti for cam in c.cameras)
 
 

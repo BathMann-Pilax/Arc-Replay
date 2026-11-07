@@ -187,6 +187,11 @@ Matériel : caméra HQ de Raspberry Pi (IMX477, 12 Mpx) et objectif de 12 mm, su
 
 Contraintes du Pi 3 B+ : un seul encodeur H.264 matériel, utilisé par la caméra cible ; aucun transcodage côté serveur. Les webcams de l'archer ajoutées plus tard devront sortir du H.264 elles-mêmes (`format_entree: h264`, `encodeur: copy`).
 
+Constaté sur un Pi 3 B+ avec caméra HQ et Logitech C920 :
+
+- **C920** : son H.264 interne n'envoie une image clé que toutes les 10 s, trop peu pour le différé et la découpe des clips (il en faut une par seconde). Utilisez-la en `format_entree: mjpeg` avec `encodeur: v4l2m2m` en 720p 30 i/s : l'encodeur matériel tient la C920 et la caméra cible en 720p ensemble (environ 45 % de CPU).
+- **TV branchée sur ce même Pi** : à éviter. Chromium n'a pas de décodage vidéo matériel sur le Pi 3 B+ ; avec le serveur et deux caméras, le Pi sature en processeur et en mémoire jusqu'à se figer. Affichez l'écran sur un autre appareil (vieux PC, boîtier Android TV, tablette) connecté au Wi-Fi `ArcReplay`.
+
 Si le serveur est une autre machine : `sudo ./noeuds/installer.sh cible-directe 10.42.0.1` sur le Pi de la caméra.
 
 ## 4. Écran

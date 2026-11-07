@@ -77,6 +77,29 @@ async def supprimer_chemin(api: str, cam_id: str) -> None:
             log.warning("suppression du chemin %s : %s", cam_id, e)
 
 
+async def chemins_manquants(
+    api: str, cameras: list[Camera], client: httpx.AsyncClient | None = None
+) -> list[str] | None:
+    """Caméras qui n'ont plus de chemin dans MediaMTX (None si MediaMTX ne répond pas).
+
+    Les chemins sont ajoutés par l'API : un MediaMTX redémarré seul les a perdus.
+    """
+    async def lister(c: httpx.AsyncClient) -> set[str]:
+        r = await c.get(f"{api}/v3/config/paths/list", params={"itemsPerPage": 1000})
+        r.raise_for_status()
+        return {p["name"] for p in r.json().get("items", [])}
+
+    try:
+        if client is not None:
+            noms = await lister(client)
+        else:
+            async with httpx.AsyncClient(timeout=5) as c:
+                noms = await lister(c)
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        return None
+    return [cam.id for cam in cameras if cam.id not in noms]
+
+
 async def synchroniser(api: str, cameras: list[Camera], tentatives: int = 60) -> list[str]:
     """Crée ou met à jour un chemin par caméra. Attend que MediaMTX réponde.
 

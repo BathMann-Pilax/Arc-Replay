@@ -393,6 +393,17 @@ class Serveur:
         )
         await self.diffuser(sauver=False)
 
+    async def surveiller_mediamtx(self, periode_s: float = 10) -> None:
+        """Recrée les chemins des caméras si MediaMTX a redémarré sans le back-end."""
+        while True:
+            await asyncio.sleep(periode_s)
+            manquants = await mediamtx.chemins_manquants(
+                self.config.serveur.mediamtx_api, self.toutes_cameras()
+            )
+            if manquants:
+                log.warning("MediaMTX a perdu %s : caméras reconfigurées", ", ".join(manquants))
+                await self.appliquer_cameras()
+
     async def recharger(self) -> None:
         nouvelle = cfg.charger()
         async with self.verrou:
@@ -501,6 +512,7 @@ async def cycle_de_vie(app: FastAPI):
     serveur = Serveur(cfg.charger())
     serveur.lancer(serveur.appliquer_cameras())
     serveur.lancer(serveur.surveiller_stockage())
+    serveur.lancer(serveur.surveiller_mediamtx())
     log.info("Arc Replay prêt : %d caméra(s)", len(serveur.config.cameras))
     yield
     for t in list(serveur.taches):
